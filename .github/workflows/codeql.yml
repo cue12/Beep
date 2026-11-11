@@ -28,6 +28,9 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Accept Android SDK Licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
       - name: Make Gradle Wrapper Executable
         run: chmod +x gradlew
 
@@ -38,6 +41,8 @@ jobs:
           queries: security-extended,security-and-quality
 
       - name: Build Android Application
+        env:
+          JAVA_TOOL_OPTIONS: "-Xmx4g"
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Perform CodeQL Analysis

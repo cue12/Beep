@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.text.method.LinkMovementMethod;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
@@ -866,6 +867,10 @@ public class MainActivity extends AppCompatActivity {
         TextView resultTv = taskView.findViewById(R.id.text_result);
         MaterialButton maximizeBtn = taskView.findViewById(R.id.button_maximize);
 
+        summaryBody.setMovementMethod(LinkMovementMethod.getInstance());
+        transcriptionBody.setMovementMethod(LinkMovementMethod.getInstance());
+        resultTv.setMovementMethod(LinkMovementMethod.getInstance());
+
         MainViewModel.TaskEntry currentTaskEntry = viewModel.getTaskEntry(taskKey);
         MainViewModel.TaskEntry taskEntry = currentTaskEntry != null ? currentTaskEntry : restoredTaskEntry;
 
@@ -896,7 +901,7 @@ public class MainActivity extends AppCompatActivity {
 
                 if (!summary.isEmpty()) {
                     summaryContainer.setVisibility(View.VISIBLE);
-                    summaryBody.setText(summary);
+                    summaryBody.setText(formatHtmlText(summary));
                     summaryBody.setVisibility(isSummaryExpanded[0] ? View.VISIBLE : View.GONE);
                     summaryChevron.setRotation(isSummaryExpanded[0] ? 0f : -90f);
 
@@ -913,7 +918,7 @@ public class MainActivity extends AppCompatActivity {
 
                 if (!transcription.isEmpty()) {
                     transcriptionContainer.setVisibility(View.VISIBLE);
-                    transcriptionBody.setText(transcription);
+                    transcriptionBody.setText(formatHtmlText(transcription));
                     transcriptionBody.setVisibility(isTranscriptionExpanded[0] ? View.VISIBLE : View.GONE);
                     transcriptionChevron.setRotation(isTranscriptionExpanded[0] ? 0f : -90f);
 
@@ -930,12 +935,12 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 structuredContainer.setVisibility(View.GONE);
                 resultTv.setVisibility(View.VISIBLE);
-                resultTv.setText(rawResult);
+                resultTv.setText(formatHtmlText(rawResult));
             }
         } else {
             structuredContainer.setVisibility(View.GONE);
             resultTv.setVisibility(View.VISIBLE);
-            resultTv.setText(rawResult);
+            resultTv.setText(formatHtmlText(rawResult));
         }
 
         View.OnLongClickListener copyListener = v -> {
@@ -965,6 +970,30 @@ public class MainActivity extends AppCompatActivity {
             resultContainer.setVisibility(isVisible ? View.GONE : View.VISIBLE);
             maximizeBtn.setText(isVisible ? R.string.button_maximize_task : R.string.button_minimize_task);
         });
+    }
+
+    private CharSequence formatHtmlText(String input) {
+        if (input == null || input.isEmpty()) {
+            return "";
+        }
+        if (hasHtmlTags(input)) {
+            return trimTrailingNewlines(HtmlCompat.fromHtml(input, HtmlCompat.FROM_HTML_MODE_LEGACY));
+        }
+        return input;
+    }
+
+    private boolean hasHtmlTags(String text) {
+        if (text == null || !text.contains("<")) return false;
+        return java.util.regex.Pattern.compile("<[a-zA-Z/][^>]*>").matcher(text).find();
+    }
+
+    private CharSequence trimTrailingNewlines(CharSequence text) {
+        if (text == null) return "";
+        int len = text.length();
+        while (len > 0 && Character.isWhitespace(text.charAt(len - 1))) {
+            len--;
+        }
+        return text.subSequence(0, len);
     }
 
     @Override
