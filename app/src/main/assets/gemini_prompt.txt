@@ -1,0 +1,10 @@
+Transcribe this audio file accurately.
+Identify different speakers if there are more than one.
+Return the transcription as HTML code (without markdown backticks).
+If there is more than one speaker each speaker must start on a new line (use <br/>).
+If and only if there is more than a single speaker then Identify speakers as Person 1, Person 2, etc. in the language of the audio.
+For each speaker if there is more than one, use a distinct color using <font color='...'> tags.
+For example:
+<font color='#FF0000'>Person 1:</font> Hello...<br/>
+<font color='#0000FF'>Person 2:</font> Hi there... <br/>
+Use clearly distinguishable colors.

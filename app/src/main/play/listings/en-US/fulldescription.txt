@@ -1,0 +1,25 @@
+Beep! is a fast, privacy-focused voice-to-text and audio transcription app for Android. Convert voice recordings, meetings, lectures, and audio files into clear text—completely offline or with optional cloud AI.
+
+⚡ PRIVACY-FIRST & 100% OFFLINE TRANSCRIPTION
+Your voice data belongs to you. Powered by OpenAI's Whisper engine running directly on your device, Beep! transcribes your audio completely offline. No registration required, no cloud uploads, and zero data leaving your phone.
+
+☁️ OPTIONAL ONLINE MODE WITH GEMINI AI
+Need ultra-fast cloud transcription? Switch seamlessly to Online mode powered by Google Gemini. Use your own Gemini API key for instant, high-accuracy transcriptions of long recordings and complex audio.
+
+🎙️ BUILT-IN VOICE RECORDER & FILE IMPORT
+- Record Memos On-the-Go: Tap to record meetings, lectures, or voice memos directly inside the app.
+- Import Audio Files: Easily import WAV, MP3, and other audio formats, or share audio directly from other Android apps into Beep!.
+
+✨ KEY FEATURES:
+- Dual Engine: High-performance local Whisper models (Offline) + Google Gemini AI (Online).
+- Complete Privacy: Offline transcriptions stay entirely on your device.
+- Flexible Model Selection: Choose from tiny, base, or small models tailored to your device speed and accuracy needs.
+- Background Processing: Process transcriptions in the background while keeping track of progress.
+- Clean History & Management: View past transcriptions, copy text to clipboard with one tap, rename, or delete files.
+- Audio Format Support: Automatic conversion of common audio formats into speech recognition pipelines.
+- Multi-Language Support: Auto-detect audio language or manually select your target language.
+
+🔒 PRIVACY GUARANTEE:
+Beep! does not require an account, does not show intrusive ads, and does not sell or share your personal data. In Offline mode, processing is strictly local.
+
+Download Beep! today for fast, private, and powerful voice-to-text transcription!

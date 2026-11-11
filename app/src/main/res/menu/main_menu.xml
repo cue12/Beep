@@ -1,0 +1,39 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_mode_toggle"
+        android:title="@string/mode_selector_title"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_select_language"
+        android:title="@string/language_selector_hint"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_record_audio"
+        android:title="@string/action_record_audio"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_download_model"
+        android:title="@string/dialog_download_model_title"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_view_logs"
+        android:title="@string/action_view_logs"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_configure_gemini"
+        android:title="@string/action_configure_gemini"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_gemini_help"
+        android:title="@string/action_gemini_help"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_start_tutorial"
+        android:title="@string/action_start_tutorial"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_about"
+        android:title="@string/action_about"
+        app:showAsAction="never" />
+</menu>

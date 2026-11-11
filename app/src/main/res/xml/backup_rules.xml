@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude large AI models and temporary shared audio files from cloud backup -->
+    <exclude domain="file" path="models" />
+    <exclude domain="file" path="shared" />
+    <!-- Exclude shared preferences containing API keys and task transcription history -->
+    <exclude domain="sharedpref" path="BeepPrefs.xml" />
+    <exclude domain="sharedpref" path="BeepSecurePrefs.xml" />
+    <exclude domain="sharedpref" path="beep_tasks.xml" />
+    <exclude domain="sharedpref" path="beep_tasks_secure.xml" />
+</full-backup-content>

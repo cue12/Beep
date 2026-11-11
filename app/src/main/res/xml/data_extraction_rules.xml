@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- Exclude large AI models and temporary shared audio files from cloud backup -->
+        <exclude domain="file" path="models" />
+        <exclude domain="file" path="shared" />
+        <!-- Exclude shared preferences containing API keys and task transcription history -->
+        <exclude domain="sharedpref" path="BeepPrefs.xml" />
+        <exclude domain="sharedpref" path="BeepSecurePrefs.xml" />
+        <exclude domain="sharedpref" path="beep_tasks.xml" />
+        <exclude domain="sharedpref" path="beep_tasks_secure.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <!-- Exclude temporary shared audio files during device-to-device transfer -->
+        <exclude domain="file" path="shared" />
+        <!-- Exclude shared preferences containing API keys and task transcription history -->
+        <exclude domain="sharedpref" path="BeepPrefs.xml" />
+        <exclude domain="sharedpref" path="BeepSecurePrefs.xml" />
+        <exclude domain="sharedpref" path="beep_tasks.xml" />
+        <exclude domain="sharedpref" path="beep_tasks_secure.xml" />
+    </device-transfer>
+</data-extraction-rules>

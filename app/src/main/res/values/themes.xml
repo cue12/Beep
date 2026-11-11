@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <style name="Theme.Whisperandroidjava" parent="Theme.Material3.DayNight.NoActionBar">
+    <!-- Primary brand color. -->
+    <item name="colorPrimary">@color/primary_light</item>
+    <item name="colorOnPrimary">@color/on_primary_light</item>
+    <item name="colorPrimaryContainer">@color/primary_container_light</item>
+    <item name="colorOnPrimaryContainer">@color/on_primary_container_light</item>
+
+    <!-- Secondary brand color. -->
+    <item name="colorSecondary">@color/secondary_light</item>
+    <item name="colorOnSecondary">@color/on_secondary_light</item>
+    <item name="colorSecondaryContainer">@color/secondary_container_light</item>
+    <item name="colorOnSecondaryContainer">@color/on_secondary_container_light</item>
+
+    <!-- Background/Surface color. -->
+    <item name="android:windowBackground">@color/background_light</item>
+    <item name="colorSurface">@color/surface_light</item>
+    <item name="colorOnSurface">@color/on_surface_light</item>
+
+    <!-- Status bar color. -->
+    <item name="android:statusBarColor">?attr/colorSurfaceContainer</item>
+    <item name="android:windowLightStatusBar">true</item>
+  </style>
+</resources>

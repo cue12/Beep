@@ -1,0 +1,5 @@
+Welcome to Beep! 🚀
+- On-device speech recognition powered by Whisper AI (100% offline & private).
+- Optional online transcription engine powered by Google Gemini.
+- Live audio recording and seamless audio file sharing/import.
+- Built-in transcription history and export options.

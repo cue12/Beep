@@ -1,0 +1,57 @@
+# Android
+build/
+release/
+app/release/
+*.pyc
+.gradle/
+local.properties
+/captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.bundle
+*.aar
+
+# IntelliJ/Android Studio
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/gradle.xml
+.idea/assetWizardSettings.xml
+.idea/dictionaries
+.idea/libraries/
+.idea/caches/
+.idea/navEditor.xml
+.idea/modules.xml
+.idea/vcs.xml
+.idea/jarRepositories.xml
+*.iml
+*.iws
+
+# NDK
+obj/
+libs/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Kotlin
+bin/
+
+# Secrets & Signing Keys
+google-play-key.json
+*.jks
+*.keystore
+*.pepk
+*.p12
+*.pem
+*.key
+secrets.properties
+*.env
+
+# Agent / IDE Artifacts
+.artifacts/
+
+# Whisper/Native specifics (if any artifacts)
+whisper-core/ggml/build/
+

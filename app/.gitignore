@@ -1,0 +1,3 @@
+# Specific ignores for app module
+# (Most common ignores are handled in the root .gitignore)
+build/
