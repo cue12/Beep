@@ -117,3 +117,10 @@ play {
   track.set("internal")
 }
 
+// Standard Gradle Zip tasks configuration (Note: AGP handles APK/AAB zip normalization internally via bundletool)
+tasks.withType(Zip).configureEach {
+  preserveFileTimestamps = false
+  reproducibleFileOrder = true
+}
+
+

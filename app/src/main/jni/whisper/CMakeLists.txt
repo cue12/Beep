@@ -8,6 +8,9 @@ set(WHISPER_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../whisper-core)
 # 16KB Page Alignment for Android 15+
 add_link_options("-Wl,-z,max-page-size=16384" "-Wl,-z,common-page-size=16384")
 
+# Reproducible builds: strip absolute build paths from C/C++ object files
+add_compile_options("-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}/../../../../..=.")
+
 # Force ggml to build as a static library
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 

@@ -1,0 +1,61 @@
+name: "Release & Provenance Attestation"
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-attest:
+    name: Build Reproducible Bundle & Generate Attestation
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write     # Required for Sigstore OIDC authentication
+      contents: write     # Required for creating GitHub Releases
+      attestations: write # Required for GitHub Artifact Attestations
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Accept Android SDK Licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x gradlew
+
+      - name: Build Release App Bundle (AAB) & APK
+        env:
+          JAVA_TOOL_OPTIONS: "-Xmx4g"
+          TZ: "UTC"
+        run: |
+          ./gradlew bundleRelease assembleRelease --no-daemon
+
+      - name: Compute SHA-256 Checksums
+        run: |
+          mkdir -p artifacts
+          cp app/build/outputs/bundle/release/*.aab artifacts/
+          cp app/build/outputs/apk/release/*.apk artifacts/
+          cd artifacts
+          sha256sum *.aab *.apk > checksums.txt
+          cat checksums.txt
+
+      - name: Attest App Bundle (AAB) Provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'artifacts/*.aab'
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          body_path: artifacts/checksums.txt
