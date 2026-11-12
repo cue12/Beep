@@ -13,7 +13,7 @@
 * **Privacy & Offline First:** Local transcription powered by `whisper.cpp` native binaries runs completely on-device without internet access or data transmission.
 * **Hybrid Processing:** Users can seamlessly toggle between lightweight/medium local models (GGML binaries) and Google Gemini AI cloud models depending on connectivity and accuracy requirements.
 * **Hardware Acceleration:** Native C++ JNI bridge dynamically selects CPU SIMD-optimized binaries (`ARM64 FP16`, `ARMv7 VFPv4/NEON`, `x86_64`) based on runtime CPU feature detection.
-* **Seamless System Integration:** Supports intent filters (`android.intent.action.SEND` / `SEND_MULTIPLE`) for audio files shared from external apps, audio recording from device microphone, and background execution resilience via Android `WorkManager`.
+* **Seamless System Integration:** Supports intent filters (`android.intent.action.SEND` / `SEND_MULTIPLE`) for audio files shared from external apps (`audio/*` and `application/octet-stream` MIME types), in-app audio recording from device microphone, background execution resilience via Android `WorkManager`, and in-app software updates via Google Play App Update API (`InAppUpdateManager`).
 
 ---
 
@@ -23,11 +23,16 @@ The codebase follows a modular **Model-View-ViewModel (MVVM)** pattern combined 
 
 ```mermaid
 graph TD
+    subgraph Application Host Layer
+        APP[App Application]
+    end
+
     subgraph Layer 1: Presentation & UI Layer
         MA[MainActivity]
         MVM[MainViewModel]
         TTVM[TranscriptionTaskViewModel]
         UID[Dialogs & UI Components<br/>HistoryFilePicker, ModelPickerAndDownloader]
+        UM[InAppUpdateManager]
     end
 
     subgraph Layer 2: Service & Execution Layer
@@ -46,21 +51,30 @@ graph TD
 
     subgraph Layer 4: Data, Storage & Utility Layer
         MR[ModelRepository]
-        SM[SettingsManager]
+        SM[SettingsManager & EncryptedPrefs]
         AC[AudioConverter / MediaCodec]
         WE[WaveEncoder]
         DMH[DownloadManagerHelper<br/>Direct URLs / Hugging Face]
         DU[DriveDownloadManagerHelper<br/>Google Drive Files]
+        LOG[Logger & LogBuffer]
+        MU[ModelUtils]
     end
 
     subgraph External Services
         GEM[Google Gemini AI SDK]
+        PLAY[Google Play App Update API]
     end
 
     %% Flow interactions
+    APP --> MA
+    APP --> CW
+    APP --> SM
+    APP --> MR
     MA --> MVM
     MA --> TTVM
     MA --> UID
+    MA --> UM
+    UM --> PLAY
     MVM --> WS
     MVM --> MR
     MVM --> SM
@@ -76,6 +90,7 @@ graph TD
     AC --> WE
     MR --> DMH
     MR --> DU
+    MR --> MU
 ```
 
 ---
@@ -86,23 +101,24 @@ Responsible for handling user interactions, rendering system state, managing the
 
 * **[MainActivity](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/MainActivity.java)**:
   * Single Activity layout host utilizing `ActivityMainBinding` (ViewBinding).
-  * Handles incoming share intents (`SEND`, `SEND_MULTIPLE` with `audio/*` mime types).
-  * Hosts toolbar menu actions (Select Audio Language, Model Downloader, Log Window, Gemini Configuration, About, Record Audio).
+  * Handles incoming share intents (`SEND`, `SEND_MULTIPLE` with `audio/*` and `application/octet-stream` MIME types).
+  * Integrates `InAppUpdateManager` to perform flexible in-app software updates via Google Play (silent check on startup/resume, and manual update trigger).
+  * Hosts toolbar menu actions (Select Audio Language, Model Downloader, Log Window, Gemini Configuration, Check for Updates, About, Record Audio).
   * Orchestrates interactive user onboarding prompts via `MaterialTapTargetPrompt`.
 * **[MainViewModel](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/MainViewModel.java)**:
   * Application-scoped ViewModel providing `LiveData` for UI state (`isProgressVisible`, `isGeminiSelected`, `currentModelName`, `downloadProgress`, `userMessage`).
   * Manages audio file conversion and preparation pipelines (`prepareAudioFile`), standardizing all incoming non-WAV audio files to 16kHz mono WAV format using `AudioConverter` and `WaveEncoder` prior to task dispatching for both Gemini and Whisper engines.
-  * Maintains `activeTaskEntries` (`List<TaskEntry>`), tracking active transcription task handles (`file`, `taskKey`, `status`, `resultText`, `workId`, `elapsedTimeMs`, `isSummaryExpanded`, `isTranscriptionExpanded`) across Activity configuration changes and persisting task states to encrypted `SharedPreferences`.
+  * Maintains `activeTaskEntries` (`List<TaskEntry>`), tracking active transcription task handles (`file`, `taskKey`, `status`, `resultText`, `workId`, `elapsedTimeMs`, `isSummaryExpanded`, `isTranscriptionExpanded`) across Activity configuration changes and persisting task states to `EncryptedSharedPreferences` (`PREFS_NAME_TASKS_SECURE` / `beep_tasks_secure`) with automatic migration from legacy unencrypted SharedPreferences (`beep_tasks`).
   * Exposes `getTaskEntry(taskKey)` and `updateTaskExpandState()` to manage and persist collapsible view section preferences for task cards.
 * **[TranscriptionTaskViewModel](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/TranscriptionTaskViewModel.java)**:
   * Dedicated Task ViewModel managing the state, progress messages, and execution lifecycle of an active transcription job enqueued via `WorkManager`.
 * **Modular UI Components & Dialogs**:
   * **[HistoryFilePicker](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/ui/HistoryFilePicker.java)**: Bottom sheet / dialog for managing and selecting previously processed audio files.
-  * **[ModelPickerAndDownloader](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/ui/ModelPickerAndDownloader.java)**: Custom Material dialog displaying available remote models alongside local status badges via `ModelDownloadListAdapter`. Includes a neutral action button for quick access to Gemini API configuration.
+  * **[ModelPickerAndDownloader](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/ui/ModelPickerAndDownloader.java)**: Custom Material dialog displaying available remote models alongside local status badges via `ModelDownloadListAdapter`. Includes a neutral action button for quick access to Gemini API configuration and language-model conflict checking (`ModelUtils.isLanguageConflicting`) to warn users when an English-only model (`.en`) is selected with a non-English target language.
   * **[ModelDownloadListAdapter](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/ui/ModelDownloadListAdapter.java)**: Specialized list adapter rendering model state badges (`Ready` with formatted file size, `Download Required`, `Corrupted` error status, or `Coming Soon`) and inline delete buttons for locally cached model binaries.
   * **Dialog Fragments & Pickers**:
     * `Language Selection Dialog (showLanguagePickerDialog)`: Single-choice `MaterialAlertDialog` mapping human-readable languages from `@array/languages` to ISO language codes (`auto`, `en`, `he`, `es`, etc.) from `@array/language_codes`. Updates `SettingsManager.setLanguage(code)` and `MainViewModel.language`.
-    * `AboutDialogFragment`: App version, JNI/GGML/Gemini architecture highlights, and licensing notices.
+    * `AboutDialogFragment`: App version, JNI/GGML/Gemini architecture highlights, live CodeQL Security Badge (`https://github.com/cue12/Beep/actions/workflows/codeql.yml`), Google Play Store feedback / feature request link (`request_feature`), manual update check action button (`checkForUpdatesManually()`), and scrollable third-party `NOTICE.txt` license viewer.
     * `LogWindowDialogFragment`: Real-time system log viewer with clipboard copy and log clearing capabilities.
     * `AudioRecordDialogFragment`: Embedded high-quality audio recording interface using `MediaRecorder`.
     * `GeminiConfigDialogFragment`: Gemini API key entry and model configuration interface.
@@ -118,16 +134,20 @@ Acts as the operational core, routing requests between offline C++ inference and
 
 * **[WhisperService](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/services/WhisperService.java)** (Singleton):
   * Central engine router. Accepts audio input files and routes requests to either `LocalWhisper` or Google Gemini AI (`GenerativeModelFutures` & `ChatFutures`).
+  * Supports Gemini **Auto Mode** (`"auto"` default), dynamically fetching available online models from `https://generativelanguage.googleapis.com/v1beta/models` (`fetchGeminiModels`), filtering `generateContent` models, caching them (`cachedGeminiModels`), and prioritizing flash models (`gemini-3.5-flash`, `gemini-3.5-flash-lite`, etc.) with automatic fallback if availability checks fail.
   * Executes multi-turn Gemini chat workflows: **Turn 1** transcribes audio with speaker identification (`gemini_prompt.txt`); **Turn 2** requests summarization (`gemini_summary_prompt.txt`). Returns a structured JSON payload (`{"Transcription": "...", "Summary": "..."}`).
+  * Handles Gemini 404/retired model errors with structured user-friendly notifications.
   * Emits status and progress updates via `TranscriptionCallback`.
+  * Exposes `release(boolean unloadNativeModel)` overload allowing clearing active task handlers without unloading the C++ native model from RAM.
 * **[LocalWhisper](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/single/LocalWhisper.java)** (Singleton):
   * Manages the lifecycle of the native Whisper context (`WhisperContext`).
   * Handles dynamic model file path changes, native resource allocations/releases, and thread configuration.
 * **[TranscriptionWorker](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/services/TranscriptionWorker.java)** (`WorkManager` Worker):
-  * Executes transcription jobs in a persistent background worker thread.
-  * Guarantees that long-running transcription tasks continue even if the UI Activity is rotated, minimized, or destroyed.
+  * Executes transcription jobs in a persistent background worker thread with a 10-minute completion timeout safeguard (`CompletableFuture.get(10, TimeUnit.MINUTES)`).
+  * Implements `onStopped()` to cancel active futures/subscriptions immediately when WorkManager stops the worker.
+  * Auto-initializes `LocalWhisper` if uninitialized when executing offline tasks.
 * **[CleanupWorker](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/workers/CleanupWorker.java)** (`WorkManager` PeriodicWorker):
-  * Scheduled daily via `WorkManager` to clean up temporary audio files and shared cache data.
+  * Scheduled daily via `WorkManager` to clean up temporary audio files and shared cache data in `shared_files/` older than 7 days (`MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000L`), preserving the sample file (`jfk.wav`).
 
 ---
 
@@ -152,9 +172,14 @@ Provides low-level interaction with hardware-accelerated binary libraries and th
 
 Handles persistence, dual-source model binary downloads, SHA-1 checksum verification, audio decoding, and file system operations.
 
+* **[App Application Class](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/app/App.java)**:
+  * Application entry point applying Material You Dynamic Colors (`DynamicColors.applyToActivitiesIfAvailable`).
+  * Creates global `ExecutorService` thread pool (`Executors.newFixedThreadPool(Math.max(2, availableProcessors))`).
+  * Monitors `onTrimMemory` levels to release native C++ resources during memory pressure when idle.
+  * Enqueues daily `CleanupWorker` periodic WorkManager tasks.
 * **[ModelRepository](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/data/ModelRepository.java)**:
   * **Multi-Host Storage Support (`ModelInfo`)**: Abstracts model sources via `HostType.OCI` (Oracle Cloud Infrastructure Object Storage `OCI_BASE_URL`), `HostType.DIRECT_URL` (direct CDN hosting, e.g. Hugging Face `MODEL_HOST_BASE_URL`), and `HostType.GOOGLE_DRIVE` (Google Drive file IDs).
-  * **GGML Model Catalog**: Manages metadata and checksums for `ggml-tiny.bin`, `ggml-tiny.en.bin`, `ggml-base.bin`, `ggml-small.bin`, and `ggml-medium.bin`.
+  * **GGML Model Catalog**: Manages metadata and checksums for active models: `ggml-tiny.bin`, `ggml-tiny.en.bin`, `ggml-base.bin`, and `ggml-small.bin` (hosted via Oracle Cloud Infrastructure OCI).
   * **Asynchronous Off-Main Pipeline**: `loadLocalModel()` runs on a dedicated background `ExecutorService` thread pool.
   * **Directory Creation Guarantee**: Calls `dstFile.getParentFile().mkdirs()` prior to stream copying to eliminate `FileNotFoundException`.
   * **Asynchronous Thread Synchronization (`CountDownLatch`)**: Pauses download execution thread via `pendingLatch.await()` when Google Drive requires HTML/anti-virus confirmation, resuming seamlessly when `onDriveUrlResolved()` is dispatched from the WebView dialog.
@@ -162,8 +187,11 @@ Handles persistence, dual-source model binary downloads, SHA-1 checksum verifica
   * **Corruption Flagging & Fallbacks**: If SHA-1 validation fails, renames the corrupted file with a `_CORRUPTED` suffix, removes the system download task, and returns an error state to the presentation layer.
   * **Cancellation & Storage Maintenance**: Supports thread-safe cancellation via `AtomicBoolean downloadCancelled` and `manager.remove(downloadId)`, as well as model file deletion (`deleteDownloadedModel`, `clearDownloadedModels`).
 * **[SettingsManager](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/data/SettingsManager.java)**:
-  * Wraps `SharedPreferences` to manage user preferences (chosen engine, active model name, Gemini API key, preferred language, tutorial state).
+  * Manages user preferences (chosen engine, active model name, Gemini model name, Gemini API key, preferred language, tutorial state). Uses `EncryptedSharedPreferences` (`BeepSecurePrefs`) with AES256 encryption for the Gemini API key, including legacy unencrypted preference migration.
 * **Utility Classes**:
+  * **[InAppUpdateManager](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/utils/InAppUpdateManager.java)**: Integrates Google Play App Update API (`AppUpdateManager`) to support flexible in-app software updates, download state listeners, and restart prompts.
+  * **[ModelUtils](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/utils/ModelUtils.java)**: Formats model display names and subtitles, computes SHA-1 checksums (`getFileSha1`), detects English-only models, and verifies language-model conflicts (`isLanguageConflicting`).
+  * **[Logger](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/utils/Logger.java)**: Central thread-safe logging utility maintaining an in-memory `logBuffer` and observer pattern (`LogListener`) for real-time inspection in `LogWindowDialogFragment`.
   * **[AudioConverter](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/utils/AudioConverter.java)**: Uses Android `MediaExtractor` and `MediaCodec` to decode compressed audio formats (`.mp3`, `.m4a`, `.aac`, `.flac`, `.ogg`, `.opus`, `.webm`) into uncompressed 16kHz mono PCM. Invoked by `MainViewModel.prepareAudioFile()` during audio preparation.
   * **[WaveEncoder](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/utils/WaveEncoder.java)**: Encodes raw PCM float arrays into valid WAV audio containers.
   * **[DownloadManagerHelper](file:///D:/Android/Projects/Beep/app/src/main/java/il/co/bensavit/beep/utils/DownloadManagerHelper.java)**: Handles direct HTTP model downloads using system `DownloadManager` with browser `User-Agent` headers and network fallback configuration (Wi-Fi and Mobile networks).
@@ -195,7 +223,7 @@ This section details the core end-to-end user interaction scenarios, state trans
 
 ### Scenario 2: External Audio Sharing & Concurrent Transcription Flow
 * **Precondition:** User selects an audio recording in an external app (e.g., WhatsApp, Voice Notes, File Manager) and taps **Share**.
-* **Trigger:** Incoming `Intent.ACTION_SEND` or `Intent.ACTION_SEND_MULTIPLE` with MIME type `audio/*`.
+* **Trigger:** Incoming `Intent.ACTION_SEND` or `Intent.ACTION_SEND_MULTIPLE` with MIME types `audio/*` or `application/octet-stream`.
 * **Flow:**
   1. **Intent Interception:** `MainActivity.onNewIntent()` receives shared URI(s).
   2. **Engine Validation:**
@@ -353,7 +381,7 @@ graph TD
 * **Audio Language Selection (`showLanguagePickerDialog`):** Single-choice dialog mapping human-readable audio languages to ISO codes (`auto`, `en`, `he`, `es`, etc.). Updates `SettingsManager.setLanguage(code)` and `MainViewModel.language`. The selected language code is passed into `taskViewModel.runTranscription()` and forwarded to `WhisperService` / C++ Whisper engine for explicit transcription language control.
 * **Gemini Configuration (`GeminiConfigDialogFragment`):** Modal dialog to view, edit, or test stored Gemini API key. Includes direct link (`action_gemini_help`) to video tutorial.
 * **Log Diagnostics (`LogWindowDialogFragment`):** Real-time log inspection dialog displaying memory buffer logs collected by `Logger`. Provides "Copy Logs" clipboard action and "Clear Logs" button.
-* **About Screen (`AboutDialogFragment`):** Displays application version details, architecture highlights (JNI/GGML/Gemini), and third-party notices.
+* **About Screen (`AboutDialogFragment`):** Displays application version details, architecture highlights (JNI/GGML/Gemini), live CodeQL Security badge link (`https://github.com/cue12/Beep/actions/workflows/codeql.yml`), Google Play Store feedback/feature request link (`request_feature`), manual update check action button (`checkForUpdatesManually()`), and scrollable third-party `NOTICE.txt` license viewer.
 * **Task Workspace Management:**
   * **Clear Tasks (`buttonClear` Click):** Clears all active task cards from `transcriptionContainer` while keeping the native model loaded in memory for fast subsequent transcriptions.
   * **Clear & Release Resources (`buttonClear` Long-Press):** Clears all active task cards and unloads/releases loaded native model and active resources from RAM.
@@ -452,10 +480,10 @@ The application enforces strict exception safety and state synchronization guara
    * Global task counter updates (`sActiveTranscriptionCount`) are executed in `synchronized` blocks and protected against underflow using `Math.max(0, sActiveTranscriptionCount + delta)`.
 
 4. **Process Termination & Low Memory Killer (LMK) Resilience**:
-   * `MainViewModel` loads and saves `TaskEntry` objects to disk (`SharedPreferences` JSON storage). If the process is terminated by the Low Memory Killer (LMK) or user exit, task records—including their completion status, elapsed execution time, work ID, and transcription result text—persist. Upon app relaunch, `restoreExistingTasks()` rebuilds completed and running task cards directly from disk.
+   * `MainViewModel` loads and saves `TaskEntry` objects to disk using `EncryptedSharedPreferences` (`PREFS_NAME_TASKS_SECURE` / `beep_tasks_secure`) with automatic migration from legacy unencrypted SharedPreferences (`beep_tasks`). If the process is terminated by the Low Memory Killer (LMK) or user exit, task records—including their completion status, elapsed execution time, work ID, and transcription result text—persist. Upon app relaunch, `restoreExistingTasks()` rebuilds completed and running task cards directly from disk.
 
 5. **Activity Configuration Change & Task Persistence (`TaskEntry`)**:
-   * **Purpose & Lifetime**: `TaskEntry` is a data model (`File file`, `String taskKey`, `Status status`, `String resultText`, `String workId`, `long elapsedTimeMs`, `boolean isSummaryExpanded`, `boolean isTranscriptionExpanded`) managed inside `MainViewModel` and backed by persistent storage.
+   * **Purpose & Lifetime**: `TaskEntry` is a data model (`File file`, `String taskKey`, `Status status`, `String resultText`, `String workId`, `long elapsedTimeMs`, `boolean isSummaryExpanded`, `boolean isTranscriptionExpanded`) managed inside `MainViewModel` and backed by persistent storage (`EncryptedSharedPreferences`).
    * **Re-binding on Recreation**: Because `MainViewModel` survives Activity recreation (e.g., orientation changes, dark mode toggles) and loads persistent task records from disk, `MainViewModel` retains task entries and child `TranscriptionTaskViewModel` instances in its `taskViewModelStore`. Upon `MainActivity.onCreate()`, `restoreExistingTasks()` queries `getActiveTaskEntries()` and re-binds both running and completed UI cards without restarting tasks.
    * **Collapsible State Persistence**: Collapsing or expanding individual summary or transcription sections dispatches `updateTaskExpandState()`, which updates `TaskEntry` in memory and saves it to encrypted `SharedPreferences`. Restored tasks query `getTaskEntry(taskKey)` to preserve section visibility preferences across Activity recreations and app relaunches.
    * **Explicit Removal Lifecycle**: Tasks remain persisted on disk and displayed in the task container until explicitly removed by the user (via long-press card removal or the "Clear All" action).

@@ -832,6 +832,8 @@ public class MainActivity extends AppCompatActivity {
                     if (which >= 0 && which < languageCodes.length && which < languages.length) {
                         String selectedCode = languageCodes[which];
 
+                        viewModel.setLanguage(selectedCode);
+
                         String currentModel = viewModel.currentModelName.getValue();
                         boolean isGemini = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue());
                         if (!isGemini && ModelUtils.isLanguageConflicting(MainActivity.this, currentModel, selectedCode)) {
@@ -839,7 +841,6 @@ public class MainActivity extends AppCompatActivity {
                             String errorMessage = getString(R.string.error_language_model_conflict, modelDisplayName);
                             showSnackbar(errorMessage);
                         } else {
-                            viewModel.setLanguage(selectedCode);
                             showSnackbar(getString(R.string.language_selector_hint) + ": " + languages[which]);
                         }
                     }

@@ -49,7 +49,7 @@ public class WhisperService {
   private static final String TAG = "WhisperService";
   private Handler mainHandler;
   private Subscription currentSubscription;
-  private ListenableFuture<GenerateContentResponse> currentGeminiFuture;
+  private final java.util.Set<ListenableFuture<GenerateContentResponse>> activeGeminiFutures = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
   private int activeTranscriptions = 0;
 
   private Handler getMainHandler() {
@@ -342,10 +342,12 @@ public class WhisperService {
 
       getMainHandler().post(() -> callback.onProgress(context.getString(il.co.bensavit.beep.R.string.transcribing_with_gemini, sampleFile.getName())));
 
-      currentGeminiFuture = chat.sendMessage(content1);
-      Futures.addCallback(currentGeminiFuture, new FutureCallback<GenerateContentResponse>() {
+      ListenableFuture<GenerateContentResponse> future1 = chat.sendMessage(content1);
+      activeGeminiFutures.add(future1);
+      Futures.addCallback(future1, new FutureCallback<GenerateContentResponse>() {
         @Override
         public void onSuccess(GenerateContentResponse response1) {
+          activeGeminiFutures.remove(future1);
           final String transcriptionText = response1.getText() != null ? response1.getText() : "";
 
           getMainHandler().post(() -> callback.onProgress("Generating summary..."));
@@ -359,11 +361,12 @@ public class WhisperService {
               .addText(summaryPrompt)
               .build();
 
-          currentGeminiFuture = chat.sendMessage(content2);
-          Futures.addCallback(currentGeminiFuture, new FutureCallback<GenerateContentResponse>() {
+          ListenableFuture<GenerateContentResponse> future2 = chat.sendMessage(content2);
+          activeGeminiFutures.add(future2);
+          Futures.addCallback(future2, new FutureCallback<GenerateContentResponse>() {
             @Override
             public void onSuccess(GenerateContentResponse response2) {
-              currentGeminiFuture = null;
+              activeGeminiFutures.remove(future2);
               String summary = response2.getText() != null ? response2.getText() : "";
 
               try {
@@ -381,7 +384,7 @@ public class WhisperService {
 
             @Override
             public void onFailure(Throwable t) {
-              currentGeminiFuture = null;
+              activeGeminiFutures.remove(future2);
               Logger.e(TAG, "Gemini summary generation failed for model " + modelId, t);
               getMainHandler().post(() -> {
                 String message = t.getMessage();
@@ -398,7 +401,7 @@ public class WhisperService {
 
         @Override
         public void onFailure(Throwable t) {
-          currentGeminiFuture = null;
+          activeGeminiFutures.remove(future1);
           Logger.e(TAG, "Gemini transcription failed for model " + modelId, t);
           getMainHandler().post(() -> {
             String message = t.getMessage();
@@ -583,11 +586,14 @@ public class WhisperService {
       currentSubscription = null;
       decrementActive();
     }
-    if (currentGeminiFuture != null) {
-      Logger.i(TAG, "Cancelling active Gemini future");
-      currentGeminiFuture.cancel(true);
-      currentGeminiFuture = null;
-      decrementActive();
+    if (!activeGeminiFutures.isEmpty()) {
+      Logger.i(TAG, "Cancelling active Gemini futures (" + activeGeminiFutures.size() + ")");
+      for (ListenableFuture<GenerateContentResponse> future : activeGeminiFutures) {
+        if (future != null) {
+          future.cancel(true);
+        }
+      }
+      activeGeminiFutures.clear();
     }
   }
 }

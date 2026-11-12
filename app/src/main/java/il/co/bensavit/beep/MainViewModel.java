@@ -258,9 +258,7 @@ public class MainViewModel extends AndroidViewModel {
                     boolean isTranscriptionExpanded = obj.optBoolean("isTranscriptionExpanded", true);
 
                     File file = new File(filePath);
-                    if (file.exists()) {
-                        activeTaskEntries.add(new TaskEntry(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded));
-                    }
+                    activeTaskEntries.add(new TaskEntry(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded));
                 }
             }
         } catch (Exception e) {
@@ -399,13 +397,15 @@ public class MainViewModel extends AndroidViewModel {
 
         mSharedDir = StorageUtils.getSharedDir(application);
 
-        loadTaskEntriesFromDisk();
+        executorService.execute(this::loadTaskEntriesFromDisk);
 
         // Copy sample file if not exists so it will be shown in history
-        File sampleFile = new File(mSharedDir, "jfk.wav");
-        if (!sampleFile.exists()) {
-            AssetUtils.copyFileFromAssets(application, "samples/jfk.wav", sampleFile);
-        }
+        executorService.execute(() -> {
+            File sampleFile = new File(mSharedDir, "jfk.wav");
+            if (!sampleFile.exists()) {
+                AssetUtils.copyFileFromAssets(application, "samples/jfk.wav", sampleFile);
+            }
+        });
 
         cleanupHistory();
         init();
