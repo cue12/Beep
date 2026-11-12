@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import il.co.bensavit.beep.app.App;
 import il.co.bensavit.beep.data.ModelRepository;
@@ -63,8 +64,23 @@ public class MainViewModel extends AndroidViewModel {
             ".wav", ".mp3", ".aac", ".ogg", ".flac", ".m4a", ".opus", ".webm", ".mp4"
     )));
 
+    private final AtomicInteger activeProgressCount = new AtomicInteger(0);
     private final MutableLiveData<Boolean> _isProgressVisible = new MutableLiveData<>(false);
     public final LiveData<Boolean> isProgressVisible = _isProgressVisible;
+
+    private void incrementProgress() {
+        if (activeProgressCount.getAndIncrement() == 0) {
+            _isProgressVisible.postValue(true);
+        }
+    }
+
+    private void decrementProgress() {
+        int count = activeProgressCount.decrementAndGet();
+        if (count <= 0) {
+            activeProgressCount.set(0);
+            _isProgressVisible.postValue(false);
+        }
+    }
 
     private final MutableLiveData<Boolean> _isGeminiSelected = new MutableLiveData<>(false);
     public final LiveData<Boolean> isGeminiSelected = _isGeminiSelected;
@@ -499,7 +515,7 @@ public class MainViewModel extends AndroidViewModel {
             if (onComplete != null) onComplete.run();
             return;
         }
-        _isProgressVisible.setValue(true);
+        incrementProgress();
         modelRepository.loadLocalModel(modelName, new ModelRepository.ModelLoadCallback() {
             @Override
             public void onProgress(int progress) {
@@ -549,7 +565,7 @@ public class MainViewModel extends AndroidViewModel {
             @Override
             public void onComplete() {
                 mainHandler.post(() -> {
-                    _isProgressVisible.setValue(false);
+                    decrementProgress();
                     if (onComplete != null) onComplete.run();
                 });
             }
@@ -576,12 +592,15 @@ public class MainViewModel extends AndroidViewModel {
     }
 
     public void handleSharedUri(Uri uri, String originalFileName, boolean autoTranscribe) {
+        showUserMessage(getApplication().getString(R.string.handling_shared_file));
+        incrementProgress();
         executorService.execute(new ProcessSharedUriTask(uri, originalFileName, autoTranscribe));
     }
 
     private void processSharedUri(Uri uri, String originalFileName, boolean autoTranscribe) {
         File copiedFile = copyUriToSharedDir(uri, originalFileName);
         if (copiedFile == null) {
+            decrementProgress();
             Logger.e(TAG, "handleSharedUri: copy failed for uri=" + uri);
             showUserMessage(getApplication().getString(R.string.error_stream_read_failed),
                     getApplication().getString(R.string.action_view_logs_short),
@@ -591,12 +610,14 @@ public class MainViewModel extends AndroidViewModel {
 
         try {
             File finalFile = prepareAudioFile(copiedFile);
+            decrementProgress();
             if (autoTranscribe) {
                 _onFileReadyForTranscription.postValue(finalFile);
             } else {
                 mainHandler.post(new ShowSavedToastTask());
             }
         } catch (Exception e) {
+            decrementProgress();
             Logger.e(TAG, "handleSharedUri: processing failed", e);
             String errorMsg;
             if (isMediaCodecError(e)) {
@@ -647,11 +668,16 @@ public class MainViewModel extends AndroidViewModel {
 
     private File convertToWavAndCleanUp(File sourceFile) throws IOException {
         File wavFile = createWavTargetFile(sourceFile);
-        File convertedFile = AudioConverter.convertToWav(sourceFile, wavFile);
-        if (!Objects.equals(convertedFile, sourceFile)) {
-            cleanupFile(sourceFile);
+        try {
+            File convertedFile = AudioConverter.convertToWav(sourceFile, wavFile);
+            if (!Objects.equals(convertedFile, sourceFile)) {
+                cleanupFile(sourceFile);
+            }
+            return convertedFile;
+        } catch (Exception e) {
+            cleanupFile(wavFile);
+            throw e;
         }
-        return convertedFile;
     }
 
     private File createWavTargetFile(File sourceFile) {

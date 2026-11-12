@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,10 +61,10 @@ public class WhisperService {
 
   private String geminiApiKey = null;
   private String selectedGeminiModel = "auto"; // Default changed to auto
-  private List<String> cachedGeminiModels = new ArrayList<>();
+  private volatile List<String> cachedGeminiModels = new ArrayList<>();
 
   public void setGeminiApiKey(String apiKey) {
-    this.geminiApiKey = apiKey;
+    this.geminiApiKey = apiKey != null ? apiKey.trim() : null;
   }
 
   public String getSelectedGeminiModel() {
@@ -421,24 +422,31 @@ public class WhisperService {
   }
 
   public void fetchGeminiModels(String apiKey, Consumer<List<String>> onSuccess, Consumer<String> onError) {
-    if (apiKey == null || apiKey.isEmpty()) {
+    if (apiKey == null || apiKey.trim().isEmpty()) {
       onError.accept("API Key is missing");
       return;
     }
 
+    final String cleanKey = apiKey.trim();
+
     new Thread(() -> {
+      HttpURLConnection conn = null;
       try {
         URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models");
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
-        conn.setRequestProperty("x-goog-api-key", apiKey);
+        conn.setRequestProperty("x-goog-api-key", cleanKey);
+        conn.setConnectTimeout(10000);
+        conn.setReadTimeout(10000);
         conn.connect();
 
         int responseCode = conn.getResponseCode();
         if (responseCode == 200) {
-          InputStream in = conn.getInputStream();
-          Scanner s = new Scanner(in).useDelimiter("\\A");
-          String result = s.hasNext() ? s.next() : "";
+          String result;
+          try (InputStream in = conn.getInputStream();
+               Scanner s = new Scanner(in, StandardCharsets.UTF_8.name()).useDelimiter("\\A")) {
+            result = s.hasNext() ? s.next() : "";
+          }
           
           JSONObject json = new JSONObject(result);
           JSONArray modelsArray = json.getJSONArray("models");
@@ -470,11 +478,39 @@ public class WhisperService {
           cachedGeminiModels = modelIds;
           getMainHandler().post(() -> onSuccess.accept(modelIds));
         } else {
-          getMainHandler().post(() -> onError.accept("Server responded with " + responseCode));
+          String errorMessage = "Server responded with " + responseCode;
+          try (InputStream err = conn.getErrorStream()) {
+            if (err != null) {
+              try (Scanner s = new Scanner(err, StandardCharsets.UTF_8.name()).useDelimiter("\\A")) {
+                String errBody = s.hasNext() ? s.next() : "";
+                try {
+                  JSONObject errJson = new JSONObject(errBody);
+                  if (errJson.has("error")) {
+                    JSONObject errObj = errJson.getJSONObject("error");
+                    String apiMsg = errObj.optString("message", "");
+                    if (!apiMsg.isEmpty()) {
+                      errorMessage = apiMsg;
+                    }
+                  }
+                } catch (Exception ignored) {
+                  if (!errBody.trim().isEmpty()) {
+                    errorMessage = errBody.trim();
+                  }
+                }
+              }
+            }
+          }
+          final String finalErr = errorMessage;
+          getMainHandler().post(() -> onError.accept(finalErr));
         }
-      } catch (Exception e) {
-        Logger.e(TAG, "Error fetching Gemini models", e);
-        getMainHandler().post(() -> onError.accept(e.getMessage()));
+      } catch (Throwable t) {
+        Logger.e(TAG, "Error fetching Gemini models", t);
+        String errorMsg = (t.getMessage() != null && !t.getMessage().trim().isEmpty()) ? t.getMessage() : "Unknown error occurred";
+        getMainHandler().post(() -> onError.accept(errorMsg));
+      } finally {
+        if (conn != null) {
+          conn.disconnect();
+        }
       }
     }).start();
   }
