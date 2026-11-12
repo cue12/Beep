@@ -135,6 +135,7 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
     public void observeExistingWork(String workIdStr) {
         if (workIdStr == null || workIdStr.isEmpty() || mCurrentWorkId != null) return;
         try {
+            cleanupObserver();
             final UUID workId = UUID.fromString(workIdStr);
             mCurrentWorkId = workId;
             if (mStartTime == 0) {
@@ -244,6 +245,13 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
             workManager.cancelWorkById(mCurrentWorkId);
 
             whisperService.stopCurrentTranscription();
+
+            if (mMainViewModel != null && mTaskKey != null) {
+                long elapsedMs = mStartTime > 0 ? System.currentTimeMillis() - mStartTime : 0;
+                String cancelText = getApplication().getString(R.string.transcription_cancelled);
+                _transcriptionText.postValue(cancelText);
+                mMainViewModel.updateTaskResult(mTaskKey, MainViewModel.TaskEntry.Status.CANCELLED, cancelText, elapsedMs);
+            }
 
             cleanupObserver();
 

@@ -1,8 +1,16 @@
 package il.co.bensavit.beep.services;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
+import android.content.pm.ServiceInfo;
+import android.os.Build;
+
 import androidx.annotation.NonNull;
+import androidx.core.app.NotificationCompat;
 import androidx.work.Data;
+import androidx.work.ForegroundInfo;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 import java.io.File;
@@ -15,6 +23,8 @@ import il.co.bensavit.beep.utils.StorageUtils;
 
 public class TranscriptionWorker extends Worker {
     private static final String TAG = "TranscriptionWorker";
+    private final int notificationId = getId().hashCode();
+    private static final String CHANNEL_ID = "transcription_channel";
 
     public static final String KEY_FILE_PATH = "file_path";
     public static final String KEY_LANGUAGE = "language";
@@ -29,7 +39,63 @@ public class TranscriptionWorker extends Worker {
 
     @NonNull
     @Override
+    public ForegroundInfo getForegroundInfo() {
+        return createForegroundInfo(getApplicationContext().getString(il.co.bensavit.beep.R.string.transcription_starting));
+    }
+
+    private void ensureNotificationChannel(@NonNull Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (notificationManager != null && notificationManager.getNotificationChannel(CHANNEL_ID) == null) {
+                NotificationChannel channel = new NotificationChannel(
+                        CHANNEL_ID,
+                        context.getString(il.co.bensavit.beep.R.string.app_name) + " Transcription",
+                        NotificationManager.IMPORTANCE_LOW
+                );
+                notificationManager.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    private ForegroundInfo createForegroundInfo(@NonNull String progressMsg) {
+        Context context = getApplicationContext();
+        ensureNotificationChannel(context);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+                .setContentTitle(context.getString(il.co.bensavit.beep.R.string.app_name) + " Transcription")
+                .setContentText(progressMsg)
+                .setSmallIcon(il.co.bensavit.beep.R.mipmap.ic_launcher)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW);
+
+        Notification notification = builder.build();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return new ForegroundInfo(
+                    notificationId,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            );
+        }
+        return new ForegroundInfo(notificationId, notification);
+    }
+
+    @NonNull
+    @Override
     public Result doWork() {
+        try {
+            com.google.common.util.concurrent.ListenableFuture<Void> foregroundFuture = setForegroundAsync(getForegroundInfo());
+            foregroundFuture.addListener(() -> {
+                try {
+                    foregroundFuture.get();
+                } catch (Exception e) {
+                    Logger.w(TAG, "Failed to set foreground status: " + e.getMessage());
+                }
+            }, Runnable::run);
+        } catch (Exception e) {
+            Logger.w(TAG, "Failed to set foreground status: " + e.getMessage());
+        }
+
         final String filePath = getInputData().getString(KEY_FILE_PATH);
         final String language = getInputData().getString(KEY_LANGUAGE);
         final boolean useGemini = getInputData().getBoolean(KEY_USE_GEMINI, false);
@@ -45,6 +111,21 @@ public class TranscriptionWorker extends Worker {
             @Override
             public void onProgress(String message) {
                 setProgressAsync(new Data.Builder().putString(KEY_PROGRESS, message).build());
+                try {
+                    NotificationManager notificationManager = (NotificationManager) getApplicationContext().getSystemService(Context.NOTIFICATION_SERVICE);
+                    if (notificationManager != null) {
+                        Notification notification = new NotificationCompat.Builder(getApplicationContext(), CHANNEL_ID)
+                                .setContentTitle(getApplicationContext().getString(il.co.bensavit.beep.R.string.app_name) + " Transcription")
+                                .setContentText(message)
+                                .setSmallIcon(il.co.bensavit.beep.R.mipmap.ic_launcher)
+                                .setOngoing(true)
+                                .setPriority(NotificationCompat.PRIORITY_LOW)
+                                .build();
+                        notificationManager.notify(notificationId, notification);
+                    }
+                } catch (Exception e) {
+                    // Ignore notification update error if worker is finishing or stopped
+                }
             }
 
             @Override
