@@ -122,7 +122,7 @@ public class WhisperService {
       SettingsManager settingsManager = new SettingsManager(context);
       modelName = settingsManager.getModelName();
     }
-    wrappedCallback.onProgress("transcribe file from: " + sampleFile.getName()+ " with model: " + modelName + " with language: " + language);
+    wrappedCallback.onProgress("MODEL_SELECTED:" + modelName);
 
     long start = System.currentTimeMillis();
     float[] audioData;

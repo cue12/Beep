@@ -11,7 +11,10 @@
     <string name="action_start_tutorial">התחל הדרכה</string>
     <string name="action_about">אודות</string>
     <string name="action_view_logs">צפה ביומנים</string>
-    <string name="action_configure_gemini">הגדרת Gemini</string>
+    <string name="action_configure_gemini">הגדרת מפתח Gemini</string>
+    <string name="action_choose_gemini_model">בחר מודל Gemini</string>
+    <string name="dialog_choose_gemini_model_title">בחר מודל Gemini</string>
+    <string name="dialog_choose_gemini_model_current">מודל נוכחי: %1$s</string>
     <string name="action_gemini_help">קבלת מפתח API של Gemini (מדריך)</string>
     <string name="dialog_gemini_config_title">מפתח API של Gemini</string>
     <string name="dialog_gemini_config_hint">הזן את מפתח ה-API שלך</string>
@@ -100,7 +103,7 @@
     <string name="button_stop_and_transcribe">עצור ותמלל</string>
     <string name="permission_record_audio_required">נדרשת הרשאת מיקרופון כדי להקליט אודיו.</string>
     <string name="error_recording_failed">הקלטת האודיו נכשלה.</string>
-    <string name="transcription_complete">הושלם</string>
+    <string name="transcription_complete">נוצר באמצעות: %1$s</string>
     <string name="button_maximize_task">הגדל</string>
     <string name="button_minimize_task">מזער</string>
     <string name="remove">הסר</string>

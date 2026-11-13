@@ -11,7 +11,10 @@
     <string name="action_start_tutorial">Iniciar tutorial</string>
     <string name="action_about">Acerca de</string>
     <string name="action_view_logs">Ver registros</string>
-    <string name="action_configure_gemini">Configurar Gemini</string>
+    <string name="action_configure_gemini">Configurar clave de Gemini</string>
+    <string name="action_choose_gemini_model">Elegir modelo de Gemini</string>
+    <string name="dialog_choose_gemini_model_title">Elegir modelo de Gemini</string>
+    <string name="dialog_choose_gemini_model_current">Modelo actual: %1$s</string>
     <string name="action_gemini_help">Obtener clave API de Gemini (Tutorial)</string>
     <string name="dialog_gemini_config_title">Clave API de Gemini</string>
     <string name="dialog_gemini_config_hint">Ingrese su clave API</string>
@@ -100,7 +103,7 @@
     <string name="button_stop_and_transcribe">Detener y transcribir</string>
     <string name="permission_record_audio_required">Se requiere permiso de micrófono para grabar audio.</string>
     <string name="error_recording_failed">Error al iniciar la grabación de audio.</string>
-    <string name="transcription_complete">Completado</string>
+    <string name="transcription_complete">Generado con: %1$s</string>
     <string name="button_maximize_task">Maximizar</string>
     <string name="button_minimize_task">Minimizar</string>
     <string name="remove">Eliminar</string>

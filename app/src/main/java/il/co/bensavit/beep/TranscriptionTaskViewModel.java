@@ -200,6 +200,8 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
                             String errorText;
                             if ("OUT_OF_MEMORY".equals(error)) {
                                 errorText = getApplication().getString(R.string.error_low_memory);
+                            } else if (error.startsWith(getApplication().getString(R.string.error_transcription_failed)) || error.startsWith("Error")) {
+                                errorText = error;
                             } else {
                                 errorText = getApplication().getString(R.string.error_transcription_failed) + ": " + error;
                             }

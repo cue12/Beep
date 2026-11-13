@@ -38,6 +38,7 @@ import il.co.bensavit.beep.ui.anim.LightTextureDrawable;
 import il.co.bensavit.beep.ui.anim.ShimmerDrawable;
 import il.co.bensavit.beep.ui.dialogs.AboutDialogFragment;
 import il.co.bensavit.beep.ui.dialogs.AudioRecordDialogFragment;
+import il.co.bensavit.beep.ui.dialogs.ChooseGeminiModelDialogFragment;
 import il.co.bensavit.beep.ui.dialogs.DownloadProgressDialogFragment;
 import il.co.bensavit.beep.ui.dialogs.DriveWebDownloadDialogFragment;
 import il.co.bensavit.beep.ui.dialogs.GeminiConfigDialogFragment;
@@ -109,6 +110,9 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             } else if (item.getItemId() == R.id.action_configure_gemini) {
                 new GeminiConfigDialogFragment().show(getSupportFragmentManager(), "GeminiConfig");
+                return true;
+            } else if (item.getItemId() == R.id.action_choose_gemini_model) {
+                new ChooseGeminiModelDialogFragment().show(getSupportFragmentManager(), "ChooseGeminiModel");
                 return true;
             } else if (item.getItemId() == R.id.action_record_audio) {
                 onRecordAudioClick();
@@ -389,6 +393,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void addTranscriptionTask(java.io.File file, MainViewModel.TaskEntry restoredTaskEntry) {
         final java.io.File[] currentFile = new java.io.File[]{file};
+        final String[] currentTaskModel = new String[]{ restoredTaskEntry != null ? restoredTaskEntry.modelName : null };
         View taskView = getLayoutInflater().inflate(R.layout.item_transcription_task, binding.transcriptionContainer, false);
         binding.transcriptionContainer.addView(taskView);
         View taskCard = taskView.findViewById(R.id.task_card);
@@ -430,7 +435,14 @@ public class MainActivity extends AppCompatActivity {
             }
 
             if (restoredTaskEntry.status == MainViewModel.TaskEntry.Status.SUCCEEDED && restoredTaskEntry.resultText != null) {
-                statusTv.setText(R.string.transcription_complete);
+                String modelName = restoredTaskEntry.modelName;
+                if (modelName == null || modelName.isEmpty()) {
+                    modelName = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue())
+                            ? viewModel.getGeminiModelName()
+                            : viewModel.currentModelName.getValue();
+                }
+                String displayName = ModelUtils.formatModelDisplayName(this, modelName);
+                statusTv.setText(getString(R.string.transcription_complete, displayName));
                 displayTaskResult(taskView, taskKey, restoredTaskEntry.resultText, restoredTaskEntry);
                 taskViewModel.setRestoredResult(restoredTaskEntry.resultText, false);
             } else if (restoredTaskEntry.resultText != null) {
@@ -482,15 +494,14 @@ public class MainActivity extends AppCompatActivity {
         taskViewModel.transcriptionText.observe(this, text -> {
             if (text != null) {
                 if (text.startsWith("MODEL_SELECTED:")) {
-                    // Ignore model selection messages for the individual task status if desired, 
-                    // or show them as status.
                     String modelId = text.substring("MODEL_SELECTED:".length());
-                    statusTv.setText(getString(R.string.model_subtitle, ModelUtils.formatModelDisplayName(this, modelId)));
+                    currentTaskModel[0] = modelId;
+                    viewModel.updateTaskModelName(taskKey, modelId);
+                    String displayName = ModelUtils.formatModelDisplayName(this, modelId);
+                    statusTv.setText(getString(R.string.model_subtitle, displayName));
                 } else if (Boolean.TRUE.equals(taskViewModel.isProgressVisible.getValue())) {
                     statusTv.setText(text);
-                } else if (text.startsWith(getString(R.string.error_transcription_failed))
-                        || text.contains(getString(R.string.error_low_memory))
-                        || text.equals(getString(R.string.transcription_cancelled))) {
+                } else if (isErrorOrCancelledMessage(text)) {
                     statusTv.setText(text);
                     if (text.contains(getString(R.string.error_low_memory))) {
                         showSnackbar(text, getString(R.string.mode_online), v -> {
@@ -498,6 +509,21 @@ public class MainActivity extends AppCompatActivity {
                         });
                     }
                 } else if (!text.equals(getString(R.string.transcription_starting))) {
+                    if (restoredTaskEntry != null && restoredTaskEntry.status != MainViewModel.TaskEntry.Status.RUNNING
+                            && Objects.equals(text, restoredTaskEntry.resultText)) {
+                        return;
+                    }
+                    MainViewModel.TaskEntry entry = viewModel.getTaskEntry(taskKey);
+                    String modelName = (entry != null && entry.modelName != null && !entry.modelName.isEmpty())
+                            ? entry.modelName
+                            : currentTaskModel[0];
+                    if (modelName == null || modelName.isEmpty()) {
+                        modelName = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue())
+                                ? viewModel.getGeminiModelName()
+                                : viewModel.currentModelName.getValue();
+                    }
+                    String displayName = ModelUtils.formatModelDisplayName(this, modelName);
+                    statusTv.setText(getString(R.string.transcription_complete, displayName));
                     displayTaskResult(taskView, taskKey, text, restoredTaskEntry);
                 }
             }
@@ -848,6 +874,15 @@ public class MainActivity extends AppCompatActivity {
                 })
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
+    }
+
+    private boolean isErrorOrCancelledMessage(String text) {
+        if (text == null) return false;
+        return text.startsWith("Error")
+                || text.startsWith(getString(R.string.error_transcription_failed))
+                || text.contains(getString(R.string.error_low_memory))
+                || text.equals(getString(R.string.transcription_cancelled))
+                || text.startsWith("Failed to");
     }
 
     private void displayTaskResult(View taskView, String taskKey, String rawResult, MainViewModel.TaskEntry restoredTaskEntry) {

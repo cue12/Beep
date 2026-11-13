@@ -168,16 +168,21 @@ public class MainViewModel extends AndroidViewModel {
         public long elapsedTimeMs;
         public boolean isSummaryExpanded;
         public boolean isTranscriptionExpanded;
+        public String modelName;
 
         public TaskEntry(File file, String taskKey) {
-            this(file, taskKey, Status.RUNNING, null, null, 0, true, true);
+            this(file, taskKey, Status.RUNNING, null, null, 0, true, true, null);
         }
 
         public TaskEntry(File file, String taskKey, Status status, String resultText, String workId, long elapsedTimeMs) {
-            this(file, taskKey, status, resultText, workId, elapsedTimeMs, true, true);
+            this(file, taskKey, status, resultText, workId, elapsedTimeMs, true, true, null);
         }
 
         public TaskEntry(File file, String taskKey, Status status, String resultText, String workId, long elapsedTimeMs, boolean isSummaryExpanded, boolean isTranscriptionExpanded) {
+            this(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded, null);
+        }
+
+        public TaskEntry(File file, String taskKey, Status status, String resultText, String workId, long elapsedTimeMs, boolean isSummaryExpanded, boolean isTranscriptionExpanded, String modelName) {
             this.file = file;
             this.taskKey = taskKey;
             this.status = status != null ? status : Status.RUNNING;
@@ -186,6 +191,7 @@ public class MainViewModel extends AndroidViewModel {
             this.elapsedTimeMs = elapsedTimeMs;
             this.isSummaryExpanded = isSummaryExpanded;
             this.isTranscriptionExpanded = isTranscriptionExpanded;
+            this.modelName = modelName;
         }
     }
 
@@ -256,9 +262,10 @@ public class MainViewModel extends AndroidViewModel {
                     long elapsedTimeMs = obj.optLong("elapsedTimeMs", 0);
                     boolean isSummaryExpanded = obj.optBoolean("isSummaryExpanded", true);
                     boolean isTranscriptionExpanded = obj.optBoolean("isTranscriptionExpanded", true);
+                    String modelName = obj.has("modelName") && !obj.isNull("modelName") ? obj.getString("modelName") : null;
 
                     File file = new File(filePath);
-                    activeTaskEntries.add(new TaskEntry(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded));
+                    activeTaskEntries.add(new TaskEntry(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded, modelName));
                 }
             }
         } catch (Exception e) {
@@ -284,6 +291,9 @@ public class MainViewModel extends AndroidViewModel {
                         }
                         if (entry.elapsedTimeMs > 0) {
                             obj.put("elapsedTimeMs", entry.elapsedTimeMs);
+                        }
+                        if (entry.modelName != null) {
+                            obj.put("modelName", entry.modelName);
                         }
                         obj.put("isSummaryExpanded", entry.isSummaryExpanded);
                         obj.put("isTranscriptionExpanded", entry.isTranscriptionExpanded);
@@ -352,6 +362,17 @@ public class MainViewModel extends AndroidViewModel {
         saveTaskEntriesToDisk();
     }
 
+    public synchronized void updateTaskModelName(String taskKey, String modelName) {
+        for (int i = 0; i < activeTaskEntries.size(); i++) {
+            TaskEntry entry = activeTaskEntries.get(i);
+            if (entry.taskKey.equals(taskKey)) {
+                entry.modelName = modelName;
+                break;
+            }
+        }
+        saveTaskEntriesToDisk();
+    }
+
     public synchronized void updateTaskResult(String taskKey, TaskEntry.Status status, String resultText, long elapsedTimeMs) {
         for (int i = 0; i < activeTaskEntries.size(); i++) {
             TaskEntry entry = activeTaskEntries.get(i);
@@ -397,7 +418,7 @@ public class MainViewModel extends AndroidViewModel {
 
         mSharedDir = StorageUtils.getSharedDir(application);
 
-        executorService.execute(this::loadTaskEntriesFromDisk);
+        loadTaskEntriesFromDisk();
 
         // Copy sample file if not exists so it will be shown in history
         executorService.execute(() -> {
@@ -492,12 +513,16 @@ public class MainViewModel extends AndroidViewModel {
 
         _isFetchingGeminiModels.setValue(true);
         whisperService.fetchGeminiModels(apiKey, models -> {
-            _geminiModels.setValue(models);
-            _isFetchingGeminiModels.setValue(false);
+            _geminiModels.postValue(models);
+            _isFetchingGeminiModels.postValue(false);
         }, error -> {
             Logger.e(TAG, "Failed to fetch Gemini models: " + error);
-            _isFetchingGeminiModels.setValue(false);
+            _isFetchingGeminiModels.postValue(false);
         });
+    }
+
+    public String getGeminiModelName() {
+        return settingsManager.getGeminiModelName();
     }
 
     public void setGeminiModel(String model) {

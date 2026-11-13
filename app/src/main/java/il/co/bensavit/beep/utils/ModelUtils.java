@@ -14,6 +14,7 @@ public class ModelUtils {
     String cleanModelId = modelId.startsWith("MODEL_SELECTED:") 
         ? modelId.substring("MODEL_SELECTED:".length()) 
         : modelId;
+    cleanModelId = new File(cleanModelId.trim()).getName();
     if ("auto".equals(cleanModelId)) return context.getString(R.string.gemini_auto);
 
     String name = cleanModelId.replace(".bin", "").replace("ggml-", "").replace("-", " ").replace("_", " ");
