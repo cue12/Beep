@@ -52,8 +52,7 @@ import il.co.bensavit.beep.utils.FileUtils;
 import il.co.bensavit.beep.utils.InAppUpdateManager;
 import il.co.bensavit.beep.utils.Logger;
 import il.co.bensavit.beep.utils.ModelUtils;
-import uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt;
-import uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetSequence;
+import il.co.bensavit.beep.ui.TutorialManager;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -634,85 +633,23 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showTutorialPrompt() {
-        if (isFinishing() || isDestroyed() || binding == null) return;
-
-        if (viewModel.isTutorialShown()) {
-            return;
-        }
-
-        if (binding.outputCard.getWidth() <= 0) {
-            binding.toolbar.removeCallbacks(showTutorialRunnable);
-            binding.toolbar.postDelayed(showTutorialRunnable, 200);
-            return;
-        }
-
-        MaterialTapTargetSequence sequence = new MaterialTapTargetSequence();
-        final boolean[] tutorialSkipped = new boolean[]{false};
-
-        // 1. Welcome & How to use (WhatsApp focus)
-        sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, binding.outputCard,
-                getString(R.string.tutorial_welcome_title), getString(R.string.tutorial_welcome_desc)));
-
-        // 2. Mode Toggle
-        sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, binding.toolbar,
-                getString(R.string.tutorial_mode_title), getString(R.string.tutorial_mode_desc)));
-
-        // 3. Model Selection
-        sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, binding.toolbar,
-                getString(R.string.tutorial_model_title), getString(R.string.tutorial_model_desc)));
-
-        // 4. Audio Language Selection
-        sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, binding.toolbar,
-                getString(R.string.tutorial_language_title), getString(R.string.tutorial_language_desc)));
-
-        // 5. History
-        sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, binding.buttonHistory,
-                getString(R.string.tutorial_history_title), getString(R.string.tutorial_history_desc)));
-
-        // 6. Copying & Managing Tasks
-        View taskTarget = binding.transcriptionContainer.getChildCount() > 0
-                ? binding.transcriptionContainer.getChildAt(0)
-                : binding.outputCard;
-        sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, taskTarget,
-                getString(R.string.tutorial_tasks_title), getString(R.string.tutorial_tasks_desc)));
-
-        // 7. Sort Tasks
-        sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, binding.buttonSortTasks,
-                getString(R.string.tutorial_sort_title), getString(R.string.tutorial_sort_desc)));
-
-        // 8. Menu Options
-        sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, binding.toolbar,
-                getString(R.string.tutorial_options_title), getString(R.string.tutorial_options_desc)));
-
-        // 9. Clear
-        sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, binding.buttonClear,
-                getString(R.string.tutorial_clear_title), getString(R.string.tutorial_clear_desc)));
-
-        sequence.setSequenceCompleteListener(() -> {
-            if (!tutorialSkipped[0]) {
-                viewModel.setTutorialShown(true);
-                showSnackbar(getString(R.string.tutorial_completed));
-            }
-        });
-
-        sequence.show();
-    }
-
-    private MaterialTapTargetPrompt.Builder createTutorialPrompt(MaterialTapTargetSequence sequence, boolean[] tutorialSkipped, View target, String title, String desc) {
-        return new MaterialTapTargetPrompt.Builder(MainActivity.this)
-                .setTarget(target)
-                .setPrimaryText(title)
-                .setSecondaryText(desc)
-                .setPromptStateChangeListener((prompt, state) -> {
-                    if (state == MaterialTapTargetPrompt.STATE_NON_FOCAL_PRESSED || state == MaterialTapTargetPrompt.STATE_BACK_BUTTON_PRESSED) {
-                        if (!tutorialSkipped[0]) {
-                            tutorialSkipped[0] = true;
-                            viewModel.setTutorialShown(true);
-                            sequence.dismiss();
-                            showSnackbar(getString(R.string.tutorial_skipped));
-                        }
+        TutorialManager.showTutorialPrompt(
+                this,
+                binding,
+                viewModel,
+                showTutorialRunnable,
+                new TutorialManager.TutorialListener() {
+                    @Override
+                    public void onTutorialCompleted() {
+                        showSnackbar(getString(R.string.tutorial_completed));
                     }
-                });
+
+                    @Override
+                    public void onTutorialSkipped() {
+                        showSnackbar(getString(R.string.tutorial_skipped));
+                    }
+                }
+        );
     }
 
     private void handleSharedUri(android.net.Uri uri) {
