@@ -169,20 +169,25 @@ public class MainViewModel extends AndroidViewModel {
         public boolean isSummaryExpanded;
         public boolean isTranscriptionExpanded;
         public String modelName;
+        public long timestamp;
 
         public TaskEntry(File file, String taskKey) {
-            this(file, taskKey, Status.RUNNING, null, null, 0, true, true, null);
+            this(file, taskKey, Status.RUNNING, null, null, 0, true, true, null, System.currentTimeMillis());
         }
 
         public TaskEntry(File file, String taskKey, Status status, String resultText, String workId, long elapsedTimeMs) {
-            this(file, taskKey, status, resultText, workId, elapsedTimeMs, true, true, null);
+            this(file, taskKey, status, resultText, workId, elapsedTimeMs, true, true, null, System.currentTimeMillis());
         }
 
         public TaskEntry(File file, String taskKey, Status status, String resultText, String workId, long elapsedTimeMs, boolean isSummaryExpanded, boolean isTranscriptionExpanded) {
-            this(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded, null);
+            this(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded, null, System.currentTimeMillis());
         }
 
         public TaskEntry(File file, String taskKey, Status status, String resultText, String workId, long elapsedTimeMs, boolean isSummaryExpanded, boolean isTranscriptionExpanded, String modelName) {
+            this(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded, modelName, System.currentTimeMillis());
+        }
+
+        public TaskEntry(File file, String taskKey, Status status, String resultText, String workId, long elapsedTimeMs, boolean isSummaryExpanded, boolean isTranscriptionExpanded, String modelName, long timestamp) {
             this.file = file;
             this.taskKey = taskKey;
             this.status = status != null ? status : Status.RUNNING;
@@ -192,6 +197,7 @@ public class MainViewModel extends AndroidViewModel {
             this.isSummaryExpanded = isSummaryExpanded;
             this.isTranscriptionExpanded = isTranscriptionExpanded;
             this.modelName = modelName;
+            this.timestamp = timestamp > 0 ? timestamp : System.currentTimeMillis();
         }
     }
 
@@ -263,9 +269,19 @@ public class MainViewModel extends AndroidViewModel {
                     boolean isSummaryExpanded = obj.optBoolean("isSummaryExpanded", true);
                     boolean isTranscriptionExpanded = obj.optBoolean("isTranscriptionExpanded", true);
                     String modelName = obj.has("modelName") && !obj.isNull("modelName") ? obj.getString("modelName") : null;
+                    long timestamp = obj.optLong("timestamp", 0);
+                    if (timestamp == 0 && taskKey.contains("_")) {
+                        try {
+                            String[] parts = taskKey.split("_");
+                            timestamp = Long.parseLong(parts[parts.length - 1]);
+                        } catch (Exception ignored) {}
+                    }
 
                     File file = new File(filePath);
-                    activeTaskEntries.add(new TaskEntry(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded, modelName));
+                    if (timestamp == 0 && file.exists()) {
+                        timestamp = file.lastModified();
+                    }
+                    activeTaskEntries.add(new TaskEntry(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded, modelName, timestamp));
                 }
             }
         } catch (Exception e) {
@@ -283,6 +299,7 @@ public class MainViewModel extends AndroidViewModel {
                         obj.put("filePath", entry.file.getAbsolutePath());
                         obj.put("taskKey", entry.taskKey);
                         obj.put("status", entry.status.name());
+                        obj.put("timestamp", entry.timestamp);
                         if (entry.resultText != null) {
                             obj.put("resultText", entry.resultText);
                         }
@@ -782,6 +799,14 @@ public class MainViewModel extends AndroidViewModel {
     public void setLanguage(String languageCode) {
         settingsManager.setLanguage(languageCode);
         _language.postValue(languageCode);
+    }
+
+    public boolean isSortTasksNewestFirst() {
+        return settingsManager.isSortTasksNewestFirst();
+    }
+
+    public void setSortTasksNewestFirst(boolean newestFirst) {
+        settingsManager.setSortTasksNewestFirst(newestFirst);
     }
 
     @Override

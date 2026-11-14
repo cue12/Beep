@@ -35,6 +35,9 @@
     <string name="history_title">היסטוריית תמלולים (%1$d)</string>
     <string name="sort_by_date">מיין לפי תאריך</string>
     <string name="sort_by_name">מיין לפי שם</string>
+    <string name="sort_newest_first">מיין מהחדש לישן</string>
+    <string name="sort_oldest_first">מיין מהישן לחדש</string>
+    <string name="sort_tasks">מיין משימות</string>
     <string name="rename">שנה שם</string>
     <string name="rename_file_title">שנה שם קובץ</string>
     <string name="empty_history">לא נמצאה היסטוריה</string>
@@ -129,6 +132,8 @@
     <string name="tutorial_history_desc">צפה בתמלולים קודמים או בהודעה לדוגמה.</string>
     <string name="tutorial_tasks_title">העתקה וניהול משימות</string>
     <string name="tutorial_tasks_desc">לחץ לחיצה ארוכה על טקסט התמלול כדי להעתיק אותו ללוח.\n\nלחץ לחיצה ארוכה בכל מקום אחר בכרטיס כדי להסיר אותו.</string>
+    <string name="tutorial_sort_title">מיון משימות</string>
+    <string name="tutorial_sort_desc">לחץ על לחצן המיון כדי לסדר את כרטיסי המשימות מהחדש לישן או מהישן לחדש.</string>
     <string name="tutorial_options_title">אפשרויות נוספות</string>
     <string name="tutorial_options_desc">גישה לאפשרויות תפריט כמו \'בחר שפת שמע\', \'הקלט שמע\', \'בחר / הורד מודל\', \'הגדר Gemini\', \'צפה ביומנים\', ו-\'אודות\'.\n\nתוכל לפתוח שוב הדרכה זו בכל עת ע"י בחירה ב-\'התחל הדרכה\' בתפריט הראשי.</string>
     <string name="tutorial_clear_title">ניקוי</string>

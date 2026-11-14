@@ -34,6 +34,9 @@
     <string name="history_title">Transcription History (%1$d)</string>
     <string name="sort_by_date">Sort by Date</string>
     <string name="sort_by_name">Sort by Name</string>
+    <string name="sort_newest_first">Sort Newest First</string>
+    <string name="sort_oldest_first">Sort Oldest First</string>
+    <string name="sort_tasks">Sort tasks</string>
     <string name="rename">Rename</string>
     <string name="rename_file_title">Rename File</string>
     <string name="empty_history">No history found</string>
@@ -128,6 +131,8 @@
     <string name="tutorial_history_desc">View your past transcriptions or a sample message.</string>
     <string name="tutorial_tasks_title">Copying &amp; Managing Tasks</string>
     <string name="tutorial_tasks_desc">Long-press the text of a transcription to copy it to your clipboard.\n\nLong-press anywhere else on the card to remove it.</string>
+    <string name="tutorial_sort_title">Sort Tasks</string>
+    <string name="tutorial_sort_desc">Tap the sort button to order task cards by newest or oldest first.</string>
     <string name="tutorial_options_title">More Options</string>
     <string name="tutorial_options_desc">Access menu options like \'Select Audio Language\', \'Record Audio\', \'Select / Download Model\', \'Configure Gemini\', \'View Logs\', and \'About\'.\n\nYou can reopen this tutorial anytime by selecting \'Start Tutorial\' from the main menu.</string>
     <string name="tutorial_clear_title">Clear</string>

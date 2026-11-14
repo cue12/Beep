@@ -18,6 +18,7 @@ public class SettingsManager {
     private static final String KEY_GEMINI_API_KEY = "gemini_api_key";
     private static final String KEY_TUTORIAL_SHOWN = "tutorial_shown";
     private static final String KEY_LANGUAGE = "language";
+    private static final String KEY_SORT_TASKS_NEWEST_FIRST = "sort_tasks_newest_first";
 
     private final Context appContext;
     private final SharedPreferences prefs;
@@ -26,6 +27,18 @@ public class SettingsManager {
     public SettingsManager(Context context) {
         this.appContext = context.getApplicationContext();
         this.prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        migrateLegacyPreferences();
+    }
+
+    private void migrateLegacyPreferences() {
+        if (!prefs.contains(KEY_SORT_TASKS_NEWEST_FIRST)) {
+            SharedPreferences legacyUiPrefs = appContext.getSharedPreferences("beep_ui_prefs", Context.MODE_PRIVATE);
+            if (legacyUiPrefs.contains(KEY_SORT_TASKS_NEWEST_FIRST)) {
+                boolean val = legacyUiPrefs.getBoolean(KEY_SORT_TASKS_NEWEST_FIRST, true);
+                prefs.edit().putBoolean(KEY_SORT_TASKS_NEWEST_FIRST, val).apply();
+                legacyUiPrefs.edit().remove(KEY_SORT_TASKS_NEWEST_FIRST).apply();
+            }
+        }
     }
 
     private synchronized SharedPreferences getSecurePrefs() {
@@ -117,5 +130,13 @@ public class SettingsManager {
 
     public void setLanguage(String language) {
         prefs.edit().putString(KEY_LANGUAGE, language).apply();
+    }
+
+    public boolean isSortTasksNewestFirst() {
+        return prefs.getBoolean(KEY_SORT_TASKS_NEWEST_FIRST, true);
+    }
+
+    public void setSortTasksNewestFirst(boolean newestFirst) {
+        prefs.edit().putBoolean(KEY_SORT_TASKS_NEWEST_FIRST, newestFirst).apply();
     }
 }

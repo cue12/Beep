@@ -35,6 +35,9 @@
     <string name="history_title">Historial de transcripciones (%1$d)</string>
     <string name="sort_by_date">Ordenar por fecha</string>
     <string name="sort_by_name">Ordenar por nombre</string>
+    <string name="sort_newest_first">Más recientes primero</string>
+    <string name="sort_oldest_first">Más antiguos primero</string>
+    <string name="sort_tasks">Ordenar tareas</string>
     <string name="rename">Renombrar</string>
     <string name="rename_file_title">Renombrar archivo</string>
     <string name="empty_history">No se encontró historial</string>
@@ -129,6 +132,8 @@
     <string name="tutorial_history_desc">Vea sus transcripciones anteriores o un mensaje de muestra.</string>
     <string name="tutorial_tasks_title">Copiar y gestionar tareas</string>
     <string name="tutorial_tasks_desc">Mantenga presionado el texto de una transcripción para copiarlo al portapapeles.\n\nMantenga presionada cualquier otra parte de la tarjeta para eliminarla.</string>
+    <string name="tutorial_sort_title">Ordenar tareas</string>
+    <string name="tutorial_sort_desc">Toque el botón de ordenación para clasificar las tarjetas de tareas de más recientes a más antiguas o viceversa.</string>
     <string name="tutorial_options_title">Más opciones</string>
     <string name="tutorial_options_desc">Acceda a opciones del menú como \'Seleccionar idioma de audio\', \'Grabar audio\', \'Seleccionar / Descargar modelo\', \'Configurar Gemini\', \'Ver registros\' y \'Acerca de\'.\n\nPuede volver a abrir este tutorial en cualquier momento seleccionando \'Iniciar tutorial\' en el menú principal.</string>
     <string name="tutorial_clear_title">Limpiar</string>

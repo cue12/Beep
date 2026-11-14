@@ -25,9 +25,14 @@ import androidx.transition.TransitionManager;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import android.animation.LayoutTransition;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 import il.co.bensavit.beep.databinding.ActivityMainBinding;
@@ -77,6 +82,7 @@ public class MainActivity extends AppCompatActivity {
     private final BackgroundAnimator backgroundAnimator = new BackgroundAnimator();
     private ShimmerDrawable cardShimmer;
     private final Runnable showTutorialRunnable = this::showTutorialPrompt;
+    private boolean mSortTasksNewestFirst = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -145,6 +151,15 @@ public class MainActivity extends AppCompatActivity {
         binding.buttonHistory.setOnClickListener(this::onHistoryClick);
         binding.buttonClear.setOnClickListener(this::onClearClick);
         binding.buttonClear.setOnLongClickListener(this::onClearLongClick);
+
+        mSortTasksNewestFirst = viewModel.isSortTasksNewestFirst();
+
+        binding.buttonSortTasks.setOnClickListener(v -> {
+            mSortTasksNewestFirst = !mSortTasksNewestFirst;
+            viewModel.setSortTasksNewestFirst(mSortTasksNewestFirst);
+            applyTaskSorting();
+            showSnackbar(getString(mSortTasksNewestFirst ? R.string.sort_newest_first : R.string.sort_oldest_first));
+        });
 
         // Attach Shimmer Reflection light sweep animation to UI elements
         //ShimmerDrawable.attachTo(binding.buttonHistory);
@@ -386,6 +401,37 @@ public class MainActivity extends AppCompatActivity {
         for (MainViewModel.TaskEntry taskEntry : viewModel.getActiveTaskEntries()) {
             addTranscriptionTask(taskEntry.file, taskEntry);
         }
+        applyTaskSorting();
+    }
+
+    private void applyTaskSorting() {
+        if (binding == null) return;
+        int count = binding.transcriptionContainer.getChildCount();
+        if (count <= 1) return;
+
+        List<View> taskViews = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            taskViews.add(binding.transcriptionContainer.getChildAt(i));
+        }
+
+        Collections.sort(taskViews, (v1, v2) -> {
+            Object tag1 = v1.getTag();
+            Object tag2 = v2.getTag();
+            long t1 = (tag1 instanceof Long) ? (Long) tag1 : 0L;
+            long t2 = (tag2 instanceof Long) ? (Long) tag2 : 0L;
+            return mSortTasksNewestFirst ? Long.compare(t2, t1) : Long.compare(t1, t2);
+        });
+
+        LayoutTransition transition = binding.transcriptionContainer.getLayoutTransition();
+        binding.transcriptionContainer.setLayoutTransition(null);
+        try {
+            binding.transcriptionContainer.removeAllViews();
+            for (View v : taskViews) {
+                binding.transcriptionContainer.addView(v);
+            }
+        } finally {
+            binding.transcriptionContainer.setLayoutTransition(transition);
+        }
     }
 
     private void addTranscriptionTask(java.io.File file) {
@@ -396,11 +442,21 @@ public class MainActivity extends AppCompatActivity {
         final java.io.File[] currentFile = new java.io.File[]{file};
         final String[] currentTaskModel = new String[]{ restoredTaskEntry != null ? restoredTaskEntry.modelName : null };
         View taskView = getLayoutInflater().inflate(R.layout.item_transcription_task, binding.transcriptionContainer, false);
-        binding.transcriptionContainer.addView(taskView);
+
+        long timestamp = restoredTaskEntry != null ? restoredTaskEntry.timestamp : System.currentTimeMillis();
+        taskView.setTag(timestamp);
+
+        if (mSortTasksNewestFirst) {
+            binding.transcriptionContainer.addView(taskView, 0);
+            binding.scrollView.post(() -> binding.scrollView.fullScroll(View.FOCUS_UP));
+        } else {
+            binding.transcriptionContainer.addView(taskView);
+            binding.scrollView.post(() -> binding.scrollView.fullScroll(View.FOCUS_DOWN));
+        }
+
         View taskCard = taskView.findViewById(R.id.task_card);
         LightTextureDrawable.attachTo(taskCard);
         ShimmerDrawable.attachTo(taskCard);
-        binding.scrollView.post(() -> binding.scrollView.fullScroll(View.FOCUS_DOWN));
 
         android.widget.TextView fileNameTv = taskView.findViewById(R.id.text_filename);
         android.widget.TextView elapsedTimeTv = taskView.findViewById(R.id.text_elapsed_time);
@@ -620,11 +676,15 @@ public class MainActivity extends AppCompatActivity {
         sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, taskTarget,
                 getString(R.string.tutorial_tasks_title), getString(R.string.tutorial_tasks_desc)));
 
-        // 7. Menu Options
+        // 7. Sort Tasks
+        sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, binding.buttonSortTasks,
+                getString(R.string.tutorial_sort_title), getString(R.string.tutorial_sort_desc)));
+
+        // 8. Menu Options
         sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, binding.toolbar,
                 getString(R.string.tutorial_options_title), getString(R.string.tutorial_options_desc)));
 
-        // 8. Clear
+        // 9. Clear
         sequence.addPrompt(createTutorialPrompt(sequence, tutorialSkipped, binding.buttonClear,
                 getString(R.string.tutorial_clear_title), getString(R.string.tutorial_clear_desc)));
 

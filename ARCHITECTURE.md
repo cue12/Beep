@@ -215,8 +215,9 @@ This section details the core end-to-end user interaction scenarios, state trans
      * **Step 4 (Audio Language Selection):** Guides user on configuring their preferred transcription language if auto-detection misidentifies the audio language.
      * **Step 5 (History Button):** Highlights audio history and file picker access.
      * **Step 6 (Transcription Card Container):** Explains long-press gestures on transcription cards to copy text (long-press on transcription text) and remove individual task cards (long-press on card background).
-     * **Step 7 (Toolbar Menu):** Guides user to menu options (Select Audio Language, Record Audio, Select / Download Model, Configure Gemini, View Logs, and About) and notes that long-pressing the menu bar replays this tutorial.
-     * **Step 8 (Clear Button):** Demonstrates wiping active task views.
+     * **Step 7 (Sort Tasks Button):** Demonstrates sorting task cards in the container (newest or oldest first).
+     * **Step 8 (Toolbar Menu):** Guides user to menu options (Select Audio Language, Record Audio, Select / Download Model, Configure Gemini, View Logs, and About) and notes that long-pressing the menu bar replays this tutorial.
+     * **Step 9 (Clear Button):** Demonstrates wiping active task views.
   2. Upon sequence completion, `SettingsManager.setTutorialShown(true)` is persisted, and a confirmation Snackbar is displayed.
 
 ---
