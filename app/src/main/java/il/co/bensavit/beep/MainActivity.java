@@ -436,12 +436,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             if (restoredTaskEntry.status == MainViewModel.TaskEntry.Status.SUCCEEDED && restoredTaskEntry.resultText != null) {
-                String modelName = restoredTaskEntry.modelName;
-                if (modelName == null || modelName.isEmpty()) {
-                    modelName = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue())
-                            ? viewModel.getGeminiModelName()
-                            : viewModel.currentModelName.getValue();
-                }
+                String modelName = resolveTaskModelName(restoredTaskEntry, restoredTaskEntry.modelName);
                 String displayName = ModelUtils.formatModelDisplayName(this, modelName);
                 statusTv.setText(getString(R.string.transcription_complete, displayName));
                 displayTaskResult(taskView, taskKey, restoredTaskEntry.resultText, restoredTaskEntry);
@@ -515,14 +510,7 @@ public class MainActivity extends AppCompatActivity {
                         return;
                     }
                     MainViewModel.TaskEntry entry = viewModel.getTaskEntry(taskKey);
-                    String modelName = (entry != null && entry.modelName != null && !entry.modelName.isEmpty())
-                            ? entry.modelName
-                            : currentTaskModel[0];
-                    if (modelName == null || modelName.isEmpty()) {
-                        modelName = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue())
-                                ? viewModel.getGeminiModelName()
-                                : viewModel.currentModelName.getValue();
-                    }
+                    String modelName = resolveTaskModelName(entry, currentTaskModel[0]);
                     String displayName = ModelUtils.formatModelDisplayName(this, modelName);
                     statusTv.setText(getString(R.string.transcription_complete, displayName));
                     displayTaskResult(taskView, taskKey, text, restoredTaskEntry);
@@ -1039,6 +1027,18 @@ public class MainActivity extends AppCompatActivity {
             inAppUpdateManager.checkOnResume();
         }
         updateModelSubtitle();
+    }
+
+    private String resolveTaskModelName(MainViewModel.TaskEntry entry, String taskModelFallback) {
+        if (entry != null && entry.modelName != null && !entry.modelName.isEmpty() && !"auto".equals(entry.modelName)) {
+            return entry.modelName;
+        }
+        if (taskModelFallback != null && !taskModelFallback.isEmpty() && !"auto".equals(taskModelFallback)) {
+            return taskModelFallback;
+        }
+        return Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue())
+                ? viewModel.getGeminiModelName()
+                : viewModel.currentModelName.getValue();
     }
 
     @Override

@@ -175,6 +175,10 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
                 if (workInfo != null) {
                     Data progress = workInfo.getProgress();
                     String progressMsg = progress.getString(TranscriptionWorker.KEY_PROGRESS);
+                    String progressModel = progress.getString(TranscriptionWorker.KEY_MODEL_NAME);
+                    if (progressModel != null && !progressModel.isEmpty() && mMainViewModel != null && mTaskKey != null) {
+                        mMainViewModel.updateTaskModelName(mTaskKey, progressModel);
+                    }
                     if (progressMsg != null) {
                         _transcriptionText.postValue(progressMsg);
                     }
@@ -188,6 +192,10 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
                         long elapsedMs = mStartTime > 0 ? System.currentTimeMillis() - mStartTime : 0;
                         if (workInfo.getState() == WorkInfo.State.SUCCEEDED) {
                             String result = workInfo.getOutputData().getString(TranscriptionWorker.KEY_RESULT);
+                            String actualModel = workInfo.getOutputData().getString(TranscriptionWorker.KEY_MODEL_NAME);
+                            if (actualModel != null && !actualModel.isEmpty() && mMainViewModel != null && mTaskKey != null) {
+                                mMainViewModel.updateTaskModelName(mTaskKey, actualModel);
+                            }
                             if (result != null) {
                                 _transcriptionText.postValue(result);
                                 if (mMainViewModel != null && mTaskKey != null) {

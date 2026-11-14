@@ -17,8 +17,12 @@ import java.io.File;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
+
+import il.co.bensavit.beep.R;
 import il.co.bensavit.beep.data.SettingsManager;
 import il.co.bensavit.beep.utils.Logger;
+import il.co.bensavit.beep.utils.ModelUtils;
 import il.co.bensavit.beep.utils.StorageUtils;
 
 public class TranscriptionWorker extends Worker {
@@ -32,6 +36,7 @@ public class TranscriptionWorker extends Worker {
     public static final String KEY_PROGRESS = "progress_msg";
     public static final String KEY_RESULT = "transcription_result";
     public static final String KEY_ERROR = "error_msg";
+    public static final String KEY_MODEL_NAME = "model_name";
 
     public TranscriptionWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {
         super(context, workerParams);
@@ -106,18 +111,32 @@ public class TranscriptionWorker extends Worker {
 
         File file = new File(filePath);
         final CompletableFuture<String> future = new CompletableFuture<>();
+        final AtomicReference<String> actualModelSelected = new AtomicReference<>();
 
         WhisperService.TranscriptionCallback callback = new WhisperService.TranscriptionCallback() {
             @Override
             public void onProgress(String message) {
-                setProgressAsync(new Data.Builder().putString(KEY_PROGRESS, message).build());
+                if (message != null && message.startsWith("MODEL_SELECTED:")) {
+                    actualModelSelected.set(message.substring("MODEL_SELECTED:".length()));
+                }
+                Data.Builder progressBuilder = new Data.Builder().putString(KEY_PROGRESS, message);
+                String selectedModel = actualModelSelected.get();
+                if (selectedModel != null && !selectedModel.isEmpty()) {
+                    progressBuilder.putString(KEY_MODEL_NAME, selectedModel);
+                }
+                setProgressAsync(progressBuilder.build());
                 try {
                     NotificationManager notificationManager = (NotificationManager) getApplicationContext().getSystemService(Context.NOTIFICATION_SERVICE);
                     if (notificationManager != null) {
+                        String notificationText = message;
+                        if (message != null && message.startsWith("MODEL_SELECTED:")) {
+                            String modelId = message.substring("MODEL_SELECTED:".length());
+                            notificationText = getApplicationContext().getString(R.string.model_subtitle, ModelUtils.formatModelDisplayName(getApplicationContext(), modelId));
+                        }
                         Notification notification = new NotificationCompat.Builder(getApplicationContext(), CHANNEL_ID)
-                                .setContentTitle(getApplicationContext().getString(il.co.bensavit.beep.R.string.app_name) + " Transcription")
-                                .setContentText(message)
-                                .setSmallIcon(il.co.bensavit.beep.R.mipmap.ic_launcher)
+                                .setContentTitle(getApplicationContext().getString(R.string.app_name) + " Transcription")
+                                .setContentText(notificationText)
+                                .setSmallIcon(R.mipmap.ic_launcher)
                                 .setOngoing(true)
                                 .setPriority(NotificationCompat.PRIORITY_LOW)
                                 .build();
@@ -145,7 +164,7 @@ public class TranscriptionWorker extends Worker {
             // Ensure Local Whisper is initialized if we are doing offline transcription
             if (!il.co.bensavit.beep.single.LocalWhisper.INSTANCE.isInitialized()) {
                 try {
-                    callback.onProgress(getApplicationContext().getString(il.co.bensavit.beep.R.string.please_wait_model_loading));
+                    callback.onProgress(getApplicationContext().getString(R.string.please_wait_model_loading));
                     il.co.bensavit.beep.app.App app = (il.co.bensavit.beep.app.App) getApplicationContext();
                     SettingsManager settingsManager = app.getSettingsManager();
                     String modelName = settingsManager.getModelName();
@@ -161,7 +180,12 @@ public class TranscriptionWorker extends Worker {
 
         try {
             String transcription = future.get(10, TimeUnit.MINUTES); // Timeout after 10 minutes to prevent hanging
-            return Result.success(new Data.Builder().putString(KEY_RESULT, transcription).build());
+            Data.Builder outputBuilder = new Data.Builder().putString(KEY_RESULT, transcription);
+            String selectedModel = actualModelSelected.get();
+            if (selectedModel != null && !selectedModel.isEmpty()) {
+                outputBuilder.putString(KEY_MODEL_NAME, selectedModel);
+            }
+            return Result.success(outputBuilder.build());
         } catch (InterruptedException e) {
             Logger.i(TAG, "Worker interrupted, stopping transcription");
             WhisperService.INSTANCE.stopCurrentTranscription();
