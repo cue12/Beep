@@ -773,6 +773,10 @@ public class MainViewModel extends AndroidViewModel {
         settingsManager.setTutorialShown(shown);
     }
 
+    public void requestShowLogWindow() {
+        _showLogWindow.setValue(true);
+    }
+
     public void onLogWindowShown() {
         _showLogWindow.setValue(false);
     }

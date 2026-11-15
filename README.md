@@ -1,5 +1,6 @@
 # wait for Beep! (Beep)
 
+[![Google Play](https://img.shields.io/badge/Google_Play-Get_it_on_Google_Play-green?logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=il.co.bensavit.beep)
 [![CodeQL Security Analysis](https://github.com/cue12/Beep/actions/workflows/codeql.yml/badge.svg)](https://github.com/cue12/Beep/actions/workflows/codeql.yml)
 ![Android SDK](https://img.shields.io/badge/Android-SDK%2026%2B-brightgreen)
 ![Target SDK](https://img.shields.io/badge/Target%20SDK-36-blue)

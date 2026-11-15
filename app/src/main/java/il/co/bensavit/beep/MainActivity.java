@@ -108,9 +108,7 @@ public class MainActivity extends AppCompatActivity {
             } else if (item.getItemId() == R.id.action_download_model) {
                 onDownloadModelClick(null);
                 return true;
-            } else if (item.getItemId() == R.id.action_view_logs) {
-                showLogWindowDialog();
-                return true;
+
             } else if (item.getItemId() == R.id.action_about) {
                 new AboutDialogFragment().show(getSupportFragmentManager(), "About");
                 return true;

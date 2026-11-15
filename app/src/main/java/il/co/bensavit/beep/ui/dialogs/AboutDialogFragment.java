@@ -8,6 +8,7 @@ import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.TypedValue;
+import android.view.Gravity;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -18,6 +19,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.DialogFragment;
+import androidx.lifecycle.ViewModelProvider;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -27,6 +29,7 @@ import java.util.Scanner;
 
 import il.co.bensavit.beep.BuildConfig;
 import il.co.bensavit.beep.MainActivity;
+import il.co.bensavit.beep.MainViewModel;
 import il.co.bensavit.beep.R;
 import il.co.bensavit.beep.utils.Logger;
 
@@ -103,6 +106,25 @@ public class AboutDialogFragment extends DialogFragment {
         feedbackLink.setPadding(0, padding / 2, 0, 0);
         feedbackLink.setOnClickListener(v -> openPlayStoreFeedback());
         layout.addView(feedbackLink);
+
+        TypedValue colorPrimaryValue = new TypedValue();
+        requireContext().getTheme().resolveAttribute(android.R.attr.colorPrimary, colorPrimaryValue, true);
+        int colorPrimary = colorPrimaryValue.data;
+
+        TextView viewLogsLink = new TextView(requireContext());
+        viewLogsLink.setText(R.string.action_view_logs);
+        viewLogsLink.setTextColor(colorPrimary);
+        viewLogsLink.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        int minTouchTarget = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 48, getResources().getDisplayMetrics());
+        viewLogsLink.setMinHeight(minTouchTarget);
+        viewLogsLink.setGravity(Gravity.CENTER_VERTICAL);
+        viewLogsLink.setPadding(0, padding / 2, 0, padding / 2);
+        viewLogsLink.setOnClickListener(v -> {
+            dismiss();
+            MainViewModel viewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
+            viewModel.requestShowLogWindow();
+        });
+        layout.addView(viewLogsLink);
 
         ScrollView scrollView = new ScrollView(requireContext());
         scrollView.addView(layout);

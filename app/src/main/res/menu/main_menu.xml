@@ -17,10 +17,6 @@
         android:title="@string/dialog_download_model_title"
         app:showAsAction="never" />
     <item
-        android:id="@+id/action_view_logs"
-        android:title="@string/action_view_logs"
-        app:showAsAction="never" />
-    <item
         android:id="@+id/action_configure_gemini"
         android:title="@string/action_configure_gemini"
         app:showAsAction="never" />
