@@ -19,6 +19,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import il.co.bensavit.beep.MainViewModel;
 import il.co.bensavit.beep.R;
@@ -127,25 +128,32 @@ public class ChooseGeminiModelDialogFragment extends DialogFragment {
         outState.putString(KEY_SELECTED_MODEL, selectedModel);
     }
 
+    static final Pattern FLASH_MODEL_PATTERN = Pattern.compile("gemini-([0-9]|f).*(latest|flash|lite)", Pattern.CASE_INSENSITIVE);
+
     private void updateModelList(String currentModel, List<String> fetchedModels) {
         modelList.clear();
         modelList.add("auto");
+        String normalizedCurrent = (currentModel != null && currentModel.startsWith("models/"))
+                ? currentModel.substring("models/".length()) : currentModel;
         if (fetchedModels != null) {
             for (String m : fetchedModels) {
-                if (!"auto".equals(m) && !modelList.contains(m)) {
-                    modelList.add(m);
+                if (m == null || "auto".equalsIgnoreCase(m)) continue;
+                String cleanName = m.startsWith("models/") ? m.substring("models/".length()) : m;
+                if (FLASH_MODEL_PATTERN.matcher(cleanName).matches() && !modelList.contains(cleanName)) {
+                    modelList.add(cleanName);
                 }
             }
         }
-        if (currentModel != null && !currentModel.isEmpty() && !modelList.contains(currentModel)) {
-            modelList.add(currentModel);
+        if (normalizedCurrent != null && !normalizedCurrent.isEmpty() && !modelList.contains(normalizedCurrent)) {
+            modelList.add(normalizedCurrent);
         }
     }
 
     private int getSelectedIndex(String modelName) {
         if (modelName == null) return -1;
+        String normalized = modelName.startsWith("models/") ? modelName.substring("models/".length()) : modelName;
         for (int index = 0; index < modelList.size(); index++) {
-            if (Objects.equals(modelList.get(index), modelName)) {
+            if (Objects.equals(modelList.get(index), normalized) || Objects.equals(modelList.get(index), modelName)) {
                 return index;
             }
         }
