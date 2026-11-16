@@ -24,6 +24,7 @@ import il.co.bensavit.beep.data.SettingsManager;
 import il.co.bensavit.beep.utils.Logger;
 import il.co.bensavit.beep.utils.ModelUtils;
 import il.co.bensavit.beep.utils.StorageUtils;
+import il.co.bensavit.beep.utils.VibrationUtils;
 
 public class TranscriptionWorker extends Worker {
     private static final String TAG = "TranscriptionWorker";
@@ -189,6 +190,7 @@ public class TranscriptionWorker extends Worker {
             if (selectedModel != null && !selectedModel.isEmpty()) {
                 outputBuilder.putString(KEY_MODEL_NAME, selectedModel);
             }
+            VibrationUtils.vibrateCompletion(getApplicationContext());
             return Result.success(outputBuilder.build());
         } catch (InterruptedException e) {
             Logger.i(TAG, "Worker interrupted, stopping transcription");

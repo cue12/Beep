@@ -167,6 +167,9 @@
     <string name="section_gemini_options">אפשרויות Gemini</string>
     <string name="option_include_summary_title">צור סיכום</string>
     <string name="option_include_summary_summary">צור סיכום באופן אוטומטי באמצעות Gemini לאחר התמלול.</string>
+    <string name="section_general_options">אפשרויות כלליות</string>
+    <string name="option_vibration_title">רטט בסיום תמלול</string>
+    <string name="option_vibration_summary">הרעד את המכשיר בעת סיום התמלול (נגישות וכלי עזר).</string>
     <string name="minimize_all_tasks">מזער הכל</string>
     <string name="expand_all_tasks">הרחב הכל</string>
     <string name="minimize_other_tasks">מזער כרטיסים אחרים</string>

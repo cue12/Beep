@@ -20,6 +20,7 @@ public class SettingsManager {
     private static final String KEY_LANGUAGE = "language";
     private static final String KEY_SORT_TASKS_NEWEST_FIRST = "sort_tasks_newest_first";
     private static final String KEY_GEMINI_SUMMARY_ENABLED = "gemini_summary_enabled";
+    private static final String KEY_VIBRATION_ENABLED = "vibration_enabled";
 
     private final Context appContext;
     private final SharedPreferences prefs;
@@ -147,5 +148,13 @@ public class SettingsManager {
 
     public void setGeminiSummaryEnabled(boolean enabled) {
         prefs.edit().putBoolean(KEY_GEMINI_SUMMARY_ENABLED, enabled).apply();
+    }
+
+    public boolean isVibrationEnabled() {
+        return prefs.getBoolean(KEY_VIBRATION_ENABLED, true);
+    }
+
+    public void setVibrationEnabled(boolean enabled) {
+        prefs.edit().putBoolean(KEY_VIBRATION_ENABLED, enabled).apply();
     }
 }

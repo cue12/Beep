@@ -16,9 +16,17 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+  <!-- Vibration -->
+  <uses-permission android:name="android.permission.VIBRATE" />
+
   <!-- Allow installation on devices without a physical microphone (e.g. ChromeOS/Tablets/Android TV) -->
   <uses-feature
       android:name="android.hardware.microphone"
+      android:required="false" />
+
+  <!-- Allow installation on devices without vibration hardware -->
+  <uses-feature
+      android:name="android.hardware.vibrator"
       android:required="false" />
 
   <application

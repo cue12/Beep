@@ -167,6 +167,9 @@
     <string name="section_gemini_options">Opciones de Gemini</string>
     <string name="option_include_summary_title">Generar resumen</string>
     <string name="option_include_summary_summary">Generar automáticamente un resumen utilizando Gemini después de la transcripción.</string>
+    <string name="section_general_options">Opciones generales</string>
+    <string name="option_vibration_title">Vibrar al finalizar</string>
+    <string name="option_vibration_summary">Vibrar el dispositivo cuando finalice la transcripción.</string>
     <string name="minimize_all_tasks">Minimizar todo</string>
     <string name="expand_all_tasks">Expandir todo</string>
     <string name="minimize_other_tasks">Minimizar otras tarjetas</string>

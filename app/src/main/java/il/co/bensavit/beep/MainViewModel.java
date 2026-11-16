@@ -88,6 +88,9 @@ public class MainViewModel extends AndroidViewModel {
     private final MutableLiveData<Boolean> _isGeminiSummaryEnabled = new MutableLiveData<>(true);
     public final LiveData<Boolean> isGeminiSummaryEnabled = _isGeminiSummaryEnabled;
 
+    private final MutableLiveData<Boolean> _isVibrationEnabled = new MutableLiveData<>(true);
+    public final LiveData<Boolean> isVibrationEnabledLiveData = _isVibrationEnabled;
+
     private final MutableLiveData<String> _currentModelName = new MutableLiveData<>(null);
     public final LiveData<String> currentModelName = _currentModelName;
 
@@ -472,6 +475,7 @@ public class MainViewModel extends AndroidViewModel {
         boolean geminiSelected = settingsManager.isGeminiSelected();
         _isGeminiSelected.setValue(geminiSelected);
         _isGeminiSummaryEnabled.setValue(settingsManager.isGeminiSummaryEnabled());
+        _isVibrationEnabled.setValue(settingsManager.isVibrationEnabled());
 
         _language.setValue(settingsManager.getLanguage());
 
@@ -817,6 +821,15 @@ public class MainViewModel extends AndroidViewModel {
     public void setGeminiSummaryEnabled(boolean enabled) {
         settingsManager.setGeminiSummaryEnabled(enabled);
         _isGeminiSummaryEnabled.postValue(enabled);
+    }
+
+    public boolean isVibrationEnabled() {
+        return settingsManager.isVibrationEnabled();
+    }
+
+    public void setVibrationEnabled(boolean enabled) {
+        settingsManager.setVibrationEnabled(enabled);
+        _isVibrationEnabled.postValue(enabled);
     }
 
     @Override

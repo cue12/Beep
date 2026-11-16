@@ -166,6 +166,9 @@
     <string name="section_gemini_options">Gemini Options</string>
     <string name="option_include_summary_title">Generate Summary</string>
     <string name="option_include_summary_summary">Automatically generate a summary using Gemini (Turn 2) after transcription.</string>
+    <string name="section_general_options">General Options</string>
+    <string name="option_vibration_title">Vibrate on completion</string>
+    <string name="option_vibration_summary">Vibrate device when audio transcription finishes.</string>
     <string name="minimize_all_tasks">Minimize All</string>
     <string name="expand_all_tasks">Expand All</string>
     <string name="minimize_other_tasks">Minimize Other Cards</string>
