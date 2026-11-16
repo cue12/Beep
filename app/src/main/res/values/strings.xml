@@ -159,4 +159,9 @@
     <string name="header_summary">📌 Summary</string>
     <string name="header_transcription">💬 Transcription</string>
     <string name="error_language_model_conflict">Selected language conflicts with the current language-specific model (%1$s).</string>
+    <string name="action_transcription_options">Transcription Options</string>
+    <string name="dialog_transcription_options_title">Transcription Options</string>
+    <string name="section_gemini_options">Gemini Options</string>
+    <string name="option_include_summary_title">Generate Summary</string>
+    <string name="option_include_summary_summary">Automatically generate a summary using Gemini (Turn 2) after transcription.</string>
 </resources>

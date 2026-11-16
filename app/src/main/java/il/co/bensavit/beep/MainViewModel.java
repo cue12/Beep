@@ -85,6 +85,9 @@ public class MainViewModel extends AndroidViewModel {
     private final MutableLiveData<Boolean> _isGeminiSelected = new MutableLiveData<>(false);
     public final LiveData<Boolean> isGeminiSelected = _isGeminiSelected;
 
+    private final MutableLiveData<Boolean> _isGeminiSummaryEnabled = new MutableLiveData<>(true);
+    public final LiveData<Boolean> isGeminiSummaryEnabled = _isGeminiSummaryEnabled;
+
     private final MutableLiveData<String> _currentModelName = new MutableLiveData<>(null);
     public final LiveData<String> currentModelName = _currentModelName;
 
@@ -468,17 +471,14 @@ public class MainViewModel extends AndroidViewModel {
     private void init() {
         boolean geminiSelected = settingsManager.isGeminiSelected();
         _isGeminiSelected.setValue(geminiSelected);
+        _isGeminiSummaryEnabled.setValue(settingsManager.isGeminiSummaryEnabled());
 
         _language.setValue(settingsManager.getLanguage());
 
         String storedModelName = settingsManager.getModelName();
         _currentModelName.setValue(storedModelName);
 
-        String rawGeminiModel = settingsManager.getGeminiModelName();
-        whisperService.setSelectedGeminiModel(rawGeminiModel);
-
         String apiKey = settingsManager.getGeminiApiKey();
-        whisperService.setGeminiApiKey(apiKey.isEmpty() ? null : apiKey);
         if (!apiKey.isEmpty()) {
             fetchGeminiModels();
         }
@@ -517,11 +517,9 @@ public class MainViewModel extends AndroidViewModel {
 
     public void setGeminiApiKey(String key) {
         settingsManager.setGeminiApiKey(key);
-        whisperService.setGeminiApiKey(key.isEmpty() ? null : key);
         if (!key.isEmpty()) {
             fetchGeminiModels();
         }
-        _currentModelName.setValue(_currentModelName.getValue());
     }
 
     public void fetchGeminiModels() {
@@ -543,7 +541,6 @@ public class MainViewModel extends AndroidViewModel {
     }
 
     public void setGeminiModel(String model) {
-        whisperService.setSelectedGeminiModel(model);
         settingsManager.setGeminiModelName(model);
     }
 
@@ -811,6 +808,15 @@ public class MainViewModel extends AndroidViewModel {
 
     public void setSortTasksNewestFirst(boolean newestFirst) {
         settingsManager.setSortTasksNewestFirst(newestFirst);
+    }
+
+    public boolean isGeminiSummaryEnabled() {
+        return settingsManager.isGeminiSummaryEnabled();
+    }
+
+    public void setGeminiSummaryEnabled(boolean enabled) {
+        settingsManager.setGeminiSummaryEnabled(enabled);
+        _isGeminiSummaryEnabled.postValue(enabled);
     }
 
     @Override

@@ -6,11 +6,12 @@ import android.os.Looper;
 
 import androidx.core.os.HandlerCompat;
 
+import il.co.bensavit.beep.R;
+import il.co.bensavit.beep.app.App;
 import il.co.bensavit.beep.bean.WhisperSegment;
 import il.co.bensavit.beep.data.SettingsManager;
 import il.co.bensavit.beep.single.LocalWhisper;
 import il.co.bensavit.beep.utils.Logger;
-import il.co.bensavit.beep.utils.StorageUtils;
 import il.co.bensavit.beep.utils.WaveEncoder;
 
 import com.google.ai.client.generativeai.GenerativeModel;
@@ -33,8 +34,12 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Scanner;
+import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.reactivestreams.Subscription;
 
@@ -47,9 +52,10 @@ public class WhisperService {
 
   public static final WhisperService INSTANCE = new WhisperService();
   private static final String TAG = "WhisperService";
+  private static final String GEMINI_MODEL_PREFIX = "models/";
   private Handler mainHandler;
   private Subscription currentSubscription;
-  private final java.util.Set<ListenableFuture<GenerateContentResponse>> activeGeminiFutures = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+  private final Set<ListenableFuture<GenerateContentResponse>> activeGeminiFutures = Collections.newSetFromMap(new ConcurrentHashMap<>());
   private int activeTranscriptions = 0;
 
   private Handler getMainHandler() {
@@ -59,21 +65,11 @@ public class WhisperService {
     return mainHandler;
   }
 
-  private String geminiApiKey = null;
-  private String selectedGeminiModel = "auto"; // Default changed to auto
-  private volatile List<String> cachedGeminiModels = new ArrayList<>();
-
-  public void setGeminiApiKey(String apiKey) {
-    this.geminiApiKey = apiKey != null ? apiKey.trim() : null;
-  }
-
-  public String getSelectedGeminiModel() {
-    return selectedGeminiModel;
-  }
-
-  public void setSelectedGeminiModel(String modelName) {
-    this.selectedGeminiModel = modelName;
-  }
+  // ARCHITECTURE NOTE: STATELESS EXECUTION
+  // WhisperService is stateless with respect to configuration (API key, model selections).
+  // Do NOT store mutable configuration fields here. All configuration must be passed directly from
+  // SettingsManager (Single Source of Truth) via method parameters.
+  private volatile List<String> cachedGeminiModels = Collections.emptyList();
 
   public synchronized boolean isBusy() {
     return activeTranscriptions > 0;
@@ -113,7 +109,7 @@ public class WhisperService {
 
     if (!sampleFile.exists()) {
       Logger.e(TAG, "transcribeSample: Audio file does not exist: " + sampleFile.getAbsolutePath());
-      wrappedCallback.onError(context.getString(il.co.bensavit.beep.R.string.error_failed_to_decode));
+      wrappedCallback.onError(context.getString(R.string.error_failed_to_decode));
       return;
     }
 
@@ -130,7 +126,7 @@ public class WhisperService {
       audioData = WaveEncoder.decodeWaveFile(sampleFile);
     } catch (IOException e) {
       Logger.e(TAG, "transcribeSample: Error decoding wave file", e);
-      wrappedCallback.onError(context.getString(il.co.bensavit.beep.R.string.error_failed_to_decode));
+      wrappedCallback.onError(context.getString(R.string.error_failed_to_decode));
       return;
     } catch (OutOfMemoryError e) {
       Logger.e(TAG, "transcribeSample: Out of memory decoding wave file", e);
@@ -138,7 +134,7 @@ public class WhisperService {
       return;
     } catch (Throwable t) {
       Logger.e(TAG, "transcribeSample: Unexpected error during decoding", t);
-      wrappedCallback.onError(context.getString(il.co.bensavit.beep.R.string.error_unexpected_decoding));
+      wrappedCallback.onError(context.getString(R.string.error_unexpected_decoding));
       return;
     }
     long end = System.currentTimeMillis();
@@ -154,7 +150,7 @@ public class WhisperService {
       if (t instanceof OutOfMemoryError || (errorMsg != null && errorMsg.contains("OutOfMemory"))) {
         wrappedCallback.onError("OUT_OF_MEMORY");
       } else {
-        wrappedCallback.onError(context.getString(il.co.bensavit.beep.R.string.error_transcription_failed));
+        wrappedCallback.onError(context.getString(R.string.error_transcription_failed));
       }
       return;
     }
@@ -169,7 +165,7 @@ public class WhisperService {
       wrappedCallback.onSuccess(finalMsg1);
     } else {
       logOnly("Transcript failed:" + (transcriptionEnd - transcriptionStart) + "ms");
-      wrappedCallback.onError(context.getString(il.co.bensavit.beep.R.string.error_transcription_failed));
+      wrappedCallback.onError(context.getString(R.string.error_transcription_failed));
     }
   }
 
@@ -186,23 +182,26 @@ public class WhisperService {
 
     try {
       // Ensure modelId has the models/ prefix which is often required for definitive validation
-      String modelPath = modelId.contains("/") ? modelId : StorageUtils.MODELS_DIR + "/" + modelId;
+      String modelPath = modelId.contains("/") ? modelId : GEMINI_MODEL_PREFIX + modelId;
       GenerativeModel gm = new GenerativeModel(modelPath, apiKey);
       GenerativeModelFutures model = GenerativeModelFutures.from(gm);
 
       // Using a minimal generateContent call is the most reliable way to validate a key
       Content content = new Content.Builder().addText(".").build();
       ListenableFuture<GenerateContentResponse> response = model.generateContent(content);
+      activeGeminiFutures.add(response);
 
       Futures.addCallback(response, new FutureCallback<GenerateContentResponse>() {
         @Override
         public void onSuccess(GenerateContentResponse result) {
+          activeGeminiFutures.remove(response);
           // If we got any response, the key and model are valid
           callback.onSuccess(modelId);
         }
 
         @Override
         public void onFailure(Throwable t) {
+          activeGeminiFutures.remove(response);
           Logger.w(TAG, "Model " + modelId + " availability check failed: " + t.getMessage());
           callback.onError(modelId);
         }
@@ -213,7 +212,17 @@ public class WhisperService {
     }
   }
 
-  public void transcribeWithGemini(File sampleFile, TranscriptionCallback callback, Context context) {
+  /**
+   * Transcribes an audio file using the Gemini API.
+   *
+   * <p><strong>ARCHITECTURE REQUIREMENT - STATELESS EXECUTION:</strong>
+   * This method is explicitly stateless with respect to configuration. It does NOT store or rely on
+   * API keys or selected models as mutable instance variables in {@link WhisperService}. The caller
+   * (e.g. {@code TranscriptionWorker}) must provide {@code apiKey} and {@code selectedModel} directly
+   * from {@code SettingsManager} (the Single Source of Truth). Do NOT re-introduce mutable configuration
+   * state fields into this service class.
+   */
+  public void transcribeWithGemini(File sampleFile, String apiKey, String selectedModel, TranscriptionCallback callback, Context context) {
     incrementActive();
     TranscriptionCallback wrappedCallback = new TranscriptionCallback() {
       private boolean completed = false;
@@ -237,32 +246,34 @@ public class WhisperService {
       }
     };
 
-    wrappedCallback.onProgress(context.getString(il.co.bensavit.beep.R.string.transcribing_with_gemini, sampleFile.getName()));
+    wrappedCallback.onProgress(context.getString(R.string.transcribing_with_gemini, sampleFile.getName()));
 
-    String apiKey = geminiApiKey;
-    if (apiKey == null || apiKey.isEmpty()) {
-      wrappedCallback.onError(context.getString(il.co.bensavit.beep.R.string.error_gemini_key_not_found));
+    String cleanKey = apiKey != null ? apiKey.trim() : "";
+    if (cleanKey.isEmpty()) {
+      wrappedCallback.onError(context.getString(R.string.error_gemini_key_not_found));
       return;
     }
 
-    if ("auto".equals(selectedGeminiModel)) {
+    String modelToUse = (selectedModel == null || selectedModel.trim().isEmpty()) ? "auto" : selectedModel.trim();
+
+    if ("auto".equals(modelToUse)) {
       if (cachedGeminiModels.isEmpty()) {
-        fetchGeminiModels(apiKey, models -> {
+        fetchGeminiModels(cleanKey, models -> {
           if (models.isEmpty()) {
-            getMainHandler().post(() -> wrappedCallback.onError(context.getString(il.co.bensavit.beep.R.string.error_fetching_models, "No models found")));
+            getMainHandler().post(() -> wrappedCallback.onError(context.getString(R.string.error_fetching_models, "No models found")));
           } else {
-            resolveAutoAndTranscribe(sampleFile, models, apiKey, wrappedCallback, context);
+            resolveAutoAndTranscribe(sampleFile, models, cleanKey, wrappedCallback, context);
           }
-        }, error -> getMainHandler().post(() -> wrappedCallback.onError(context.getString(il.co.bensavit.beep.R.string.error_fetching_models, error))));
+        }, error -> getMainHandler().post(() -> wrappedCallback.onError(context.getString(R.string.error_fetching_models, error))));
         return;
       } else {
-        resolveAutoAndTranscribe(sampleFile, cachedGeminiModels, apiKey, wrappedCallback, context);
+        resolveAutoAndTranscribe(sampleFile, cachedGeminiModels, cleanKey, wrappedCallback, context);
         return;
       }
     }
 
-    wrappedCallback.onProgress("MODEL_SELECTED:" + selectedGeminiModel);
-    transcribeWithModel(sampleFile, selectedGeminiModel, apiKey, wrappedCallback, context);
+    wrappedCallback.onProgress("MODEL_SELECTED:" + modelToUse);
+    transcribeWithModel(sampleFile, modelToUse, cleanKey, wrappedCallback, context);
   }
 
   public List<String> getPrioritizedModels(List<String> models) {
@@ -296,7 +307,7 @@ public class WhisperService {
 
   private void checkNextAndTranscribe(File sampleFile, List<String> priorityList, int index, String apiKey, TranscriptionCallback callback, Context context) {
     if (index >= priorityList.size()) {
-      getMainHandler().post(() -> callback.onError(context.getString(il.co.bensavit.beep.R.string.error_no_suitable_model)));
+      getMainHandler().post(() -> callback.onError(context.getString(R.string.error_no_suitable_model)));
       return;
     }
 
@@ -304,11 +315,17 @@ public class WhisperService {
     checkModelAvailability(modelId, apiKey, new TranscriptionCallback() {
       @Override public void onProgress(String message) {}
       @Override public void onSuccess(String result) {
+        if (!isBusy()) {
+          Logger.i(TAG, "Transcription was cancelled during model resolution");
+          return;
+        }
         getMainHandler().post(() -> callback.onProgress("MODEL_SELECTED:" + modelId));
-        transcribeWithModel(sampleFile, modelId, apiKey, callback, context);
+        new Thread(() -> transcribeWithModel(sampleFile, modelId, apiKey, callback, context)).start();
       }
       @Override public void onError(String error) {
-        checkNextAndTranscribe(sampleFile, priorityList, index + 1, apiKey, callback, context);
+        if (isBusy()) {
+          checkNextAndTranscribe(sampleFile, priorityList, index + 1, apiKey, callback, context);
+        }
       }
     });
   }
@@ -328,100 +345,138 @@ public class WhisperService {
   }
 
   private void transcribeWithModel(File sampleFile, String modelId, String apiKey, TranscriptionCallback callback, Context context) {
+    if (!isBusy()) {
+      Logger.i(TAG, "transcribeWithModel cancelled before start");
+      callback.onError(context.getString(R.string.transcription_cancelled));
+      return;
+    }
+
     try {
       byte[] fileBytes = Files.readAllBytes(sampleFile.toPath());
-      String modelPath = modelId.contains("/") ? modelId : StorageUtils.MODELS_DIR + "/" + modelId;
+      String modelPath = modelId.contains("/") ? modelId : GEMINI_MODEL_PREFIX + modelId;
       GenerativeModel gm = new GenerativeModel(modelPath, apiKey);
       GenerativeModelFutures model = GenerativeModelFutures.from(gm);
       ChatFutures chat = model.startChat();
 
-      Content content1 = new Content.Builder()
-          .addText(readAssetTextFile(context, "gemini_prompt.txt"))
-          .addBlob(getMimeType(sampleFile), fileBytes)
-          .build();
+      getMainHandler().post(() -> callback.onProgress(
+          context.getString(R.string.transcribing_with_gemini, sampleFile.getName())));
 
-      getMainHandler().post(() -> callback.onProgress(context.getString(il.co.bensavit.beep.R.string.transcribing_with_gemini, sampleFile.getName())));
-
-      ListenableFuture<GenerateContentResponse> future1 = chat.sendMessage(content1);
-      activeGeminiFutures.add(future1);
-      Futures.addCallback(future1, new FutureCallback<GenerateContentResponse>() {
-        @Override
-        public void onSuccess(GenerateContentResponse response1) {
-          activeGeminiFutures.remove(future1);
-          final String transcriptionText = response1.getText() != null ? response1.getText() : "";
-
-          getMainHandler().post(() -> callback.onProgress("Generating summary..."));
-
-          String summaryPrompt = readAssetTextFile(context, "gemini_summary_prompt.txt");
-          if (summaryPrompt.isEmpty()) {
-            summaryPrompt = "Create a concise summary of the aforementioned transcription in the language of the transcription.";
-          }
-
-          Content content2 = new Content.Builder()
-              .addText(summaryPrompt)
-              .build();
-
-          ListenableFuture<GenerateContentResponse> future2 = chat.sendMessage(content2);
-          activeGeminiFutures.add(future2);
-          Futures.addCallback(future2, new FutureCallback<GenerateContentResponse>() {
-            @Override
-            public void onSuccess(GenerateContentResponse response2) {
-              activeGeminiFutures.remove(future2);
-              String summary = response2.getText() != null ? response2.getText() : "";
-
-              try {
-                JSONObject jsonOutput = new JSONObject();
-                jsonOutput.put("Transcription", transcriptionText);
-                jsonOutput.put("Summary", summary);
-
-                String resultString = jsonOutput.toString(2);
-                getMainHandler().post(() -> callback.onSuccess(resultString));
-              } catch (Exception e) {
-                Logger.e(TAG, "Error building JSON output for Gemini transcription", e);
-                getMainHandler().post(() -> callback.onError("Error creating JSON result: " + e.getMessage()));
-              }
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-              activeGeminiFutures.remove(future2);
-              Logger.e(TAG, "Gemini summary generation failed for model " + modelId, t);
-              getMainHandler().post(() -> {
-                String message = t.getMessage();
-                String handledError = getGeminiErrorMessage(message, context);
-                if (handledError != null) {
-                  callback.onError(handledError);
-                } else {
-                  callback.onError(context.getString(il.co.bensavit.beep.R.string.error_gemini_general, message));
-                }
-              });
-            }
-          }, r -> getMainHandler().post(r));
-        }
-
-        @Override
-        public void onFailure(Throwable t) {
-          activeGeminiFutures.remove(future1);
-          Logger.e(TAG, "Gemini transcription failed for model " + modelId, t);
-          getMainHandler().post(() -> {
-            String message = t.getMessage();
-            String handledError = getGeminiErrorMessage(message, context);
-            if (handledError != null) {
-              callback.onError(handledError);
-            } else {
-              callback.onError(context.getString(il.co.bensavit.beep.R.string.error_gemini_general, message));
-            }
-          });
-        }
-      }, r -> getMainHandler().post(r));
-
+      executeTranscriptionPhase(chat, sampleFile, fileBytes, modelId, callback, context);
     } catch (OutOfMemoryError e) {
       Logger.e(TAG, "Out of memory reading audio file for Gemini", e);
       callback.onError("OUT_OF_MEMORY");
     } catch (Throwable t) {
       Logger.e(TAG, "Failed to read audio file or initialize Gemini stream", t);
-      callback.onError(context.getString(il.co.bensavit.beep.R.string.error_failed_to_read_audio));
+      callback.onError(context.getString(R.string.error_failed_to_read_audio));
     }
+  }
+
+  private void executeTranscriptionPhase(ChatFutures chat, File sampleFile, byte[] fileBytes, String modelId, TranscriptionCallback callback, Context context) {
+    Content content1 = new Content.Builder()
+        .addText(readAssetTextFile(context, "gemini_prompt.txt"))
+        .addBlob(getMimeType(sampleFile), fileBytes)
+        .build();
+
+    ListenableFuture<GenerateContentResponse> future1 = chat.sendMessage(content1);
+    activeGeminiFutures.add(future1);
+
+    Futures.addCallback(future1, new FutureCallback<GenerateContentResponse>() {
+      @Override
+      public void onSuccess(GenerateContentResponse response1) {
+        activeGeminiFutures.remove(future1);
+        String transcriptionText;
+        try {
+          transcriptionText = response1.getText() != null ? response1.getText() : "";
+        } catch (Throwable t) {
+          handleGeminiFailure(future1, modelId, t, "transcription", callback, context);
+          return;
+        }
+
+        App app = (App) context.getApplicationContext();
+        if (!app.getSettingsManager().isGeminiSummaryEnabled()) {
+          deliverResult(transcriptionText, null, callback);
+          return;
+        }
+
+        executeSummaryPhase(chat, transcriptionText, modelId, callback, context);
+      }
+
+      @Override
+      public void onFailure(Throwable t) {
+        handleGeminiFailure(future1, modelId, t, "transcription", callback, context);
+      }
+    }, r -> getMainHandler().post(r));
+  }
+
+  private void executeSummaryPhase(ChatFutures chat, String transcriptionText, String modelId, TranscriptionCallback callback, Context context) {
+    getMainHandler().post(() -> callback.onProgress("Generating summary..."));
+
+    String summaryPrompt = readAssetTextFile(context, "gemini_summary_prompt.txt");
+    if (summaryPrompt.isEmpty()) {
+      summaryPrompt = "Create a concise summary of the aforementioned transcription in the language of the transcription.";
+    }
+
+    Content content2 = new Content.Builder()
+        .addText(summaryPrompt)
+        .build();
+
+    ListenableFuture<GenerateContentResponse> future2 = chat.sendMessage(content2);
+    activeGeminiFutures.add(future2);
+
+    Futures.addCallback(future2, new FutureCallback<GenerateContentResponse>() {
+      @Override
+      public void onSuccess(GenerateContentResponse response2) {
+        activeGeminiFutures.remove(future2);
+        String summaryText = null;
+        try {
+          summaryText = response2.getText() != null ? response2.getText() : "";
+        } catch (Throwable t) {
+          Logger.w(TAG, "Failed to extract summary text from response for model " + modelId + ": " + t.getMessage());
+        }
+        deliverResult(transcriptionText, summaryText, callback);
+      }
+
+      @Override
+      public void onFailure(Throwable t) {
+        activeGeminiFutures.remove(future2);
+        if (t instanceof CancellationException) {
+          Logger.i(TAG, "Gemini summary generation was cancelled");
+          return;
+        }
+        Logger.w(TAG, "Gemini summary generation failed for model " + modelId + ", falling back to transcription only: " + t.getMessage());
+        deliverResult(transcriptionText, null, callback);
+      }
+    }, r -> getMainHandler().post(r));
+  }
+
+  private void deliverResult(String transcription, String summary, TranscriptionCallback callback) {
+    try {
+      JSONObject jsonOutput = new JSONObject();
+      jsonOutput.put("Transcription", transcription);
+      if (summary != null && !summary.isEmpty()) {
+        jsonOutput.put("Summary", summary);
+      }
+
+      String resultString = jsonOutput.toString(2);
+      getMainHandler().post(() -> callback.onSuccess(resultString));
+    } catch (Exception e) {
+      Logger.e(TAG, "Error building JSON output for Gemini transcription", e);
+      getMainHandler().post(() -> callback.onError("Error creating JSON result: " + e.getMessage()));
+    }
+  }
+
+  private void handleGeminiFailure(ListenableFuture<?> future, String modelId, Throwable t, String phase, TranscriptionCallback callback, Context context) {
+    activeGeminiFutures.remove(future);
+    Logger.e(TAG, "Gemini " + phase + " failed for model " + modelId, t);
+    getMainHandler().post(() -> {
+      String message = t.getMessage();
+      String handledError = getGeminiErrorMessage(message, modelId, context);
+      if (handledError != null) {
+        callback.onError(handledError);
+      } else {
+        callback.onError(context.getString(R.string.error_gemini_general, message));
+      }
+    });
   }
 
   public void fetchGeminiModels(String apiKey, Consumer<List<String>> onSuccess, Consumer<String> onError) {
@@ -474,11 +529,11 @@ public class WhisperService {
             if (supportsContent) {
               // We keep the models/ prefix for consistency with the SDK if needed, 
               // but current logic often strips it. Let's keep the raw ID.
-              modelIds.add(name.replace(StorageUtils.MODELS_DIR + "/", ""));
+              modelIds.add(name.replace(GEMINI_MODEL_PREFIX, ""));
             }
           }
           
-          cachedGeminiModels = modelIds;
+          cachedGeminiModels = Collections.unmodifiableList(new ArrayList<>(modelIds));
           getMainHandler().post(() -> onSuccess.accept(modelIds));
         } else {
           String errorMessage = "Server responded with " + responseCode;
@@ -518,7 +573,7 @@ public class WhisperService {
     }).start();
   }
 
-  private String getGeminiErrorMessage(String rawMessage, Context context) {
+  private String getGeminiErrorMessage(String rawMessage, String modelName, Context context) {
     if (rawMessage == null) return null;
     try {
       // Check if the message contains a JSON error object
@@ -532,11 +587,11 @@ public class WhisperService {
           JSONObject errorObj = json.getJSONObject("error");
           int code = errorObj.optInt("code");
           if (code == 404) {
-            return context.getString(il.co.bensavit.beep.R.string.error_gemini_model_not_found, selectedGeminiModel);
+            return context.getString(R.string.error_gemini_model_not_found, modelName);
           }
           String message = errorObj.optString("message", "");
           if (!message.isEmpty()) {
-            return context.getString(il.co.bensavit.beep.R.string.error_gemini_response_code, code, message);
+            return context.getString(R.string.error_gemini_response_code, code, message);
           }
         }
       }
@@ -545,14 +600,14 @@ public class WhisperService {
     }
 
     if (rawMessage.contains("404")) {
-      return context.getString(il.co.bensavit.beep.R.string.error_gemini_model_retired, selectedGeminiModel);
+      return context.getString(R.string.error_gemini_model_retired, modelName);
     }
     return null;
   }
 
   private String readAssetTextFile(Context context, String fileName) {
     try (InputStream is = context.getAssets().open(fileName);
-         Scanner s = new Scanner(is).useDelimiter("\\A")) {
+         Scanner s = new Scanner(is, StandardCharsets.UTF_8.name()).useDelimiter("\\A")) {
       return s.hasNext() ? s.next() : "";
     } catch (IOException e) {
       Logger.e(TAG, "Error reading asset file: " + fileName, e);
@@ -574,6 +629,7 @@ public class WhisperService {
       mainHandler.removeCallbacksAndMessages(null);
     }
     activeTranscriptions = 0;
+    cachedGeminiModels = Collections.emptyList();
     if (unloadNativeModel) {
       LocalWhisper.INSTANCE.release();
     }
@@ -594,6 +650,7 @@ public class WhisperService {
         }
       }
       activeGeminiFutures.clear();
+      decrementActive();
     }
   }
 }

@@ -160,4 +160,9 @@
     <string name="header_summary">📌 סיכום</string>
     <string name="header_transcription">💬 תמלול</string>
     <string name="error_language_model_conflict">השפה שנבחרה מתנגשת עם המודל הייעודי לשפה הנוכחי (%1$s).</string>
+    <string name="action_transcription_options">אפשרויות תמלול</string>
+    <string name="dialog_transcription_options_title">אפשרויות תמלול</string>
+    <string name="section_gemini_options">אפשרויות Gemini</string>
+    <string name="option_include_summary_title">צור סיכום</string>
+    <string name="option_include_summary_summary">צור סיכום באופן אוטומטי באמצעות Gemini לאחר התמלול.</string>
 </resources>

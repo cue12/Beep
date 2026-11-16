@@ -48,6 +48,7 @@ import il.co.bensavit.beep.ui.dialogs.DownloadProgressDialogFragment;
 import il.co.bensavit.beep.ui.dialogs.DriveWebDownloadDialogFragment;
 import il.co.bensavit.beep.ui.dialogs.GeminiConfigDialogFragment;
 import il.co.bensavit.beep.ui.dialogs.LogWindowDialogFragment;
+import il.co.bensavit.beep.ui.dialogs.TranscriptionOptionsDialogFragment;
 import il.co.bensavit.beep.utils.FileUtils;
 import il.co.bensavit.beep.utils.InAppUpdateManager;
 import il.co.bensavit.beep.utils.Logger;
@@ -117,6 +118,9 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             } else if (item.getItemId() == R.id.action_choose_gemini_model) {
                 new ChooseGeminiModelDialogFragment().show(getSupportFragmentManager(), "ChooseGeminiModel");
+                return true;
+            } else if (item.getItemId() == R.id.action_transcription_options) {
+                new TranscriptionOptionsDialogFragment().show(getSupportFragmentManager(), "TranscriptionOptions");
                 return true;
             } else if (item.getItemId() == R.id.action_record_audio) {
                 onRecordAudioClick();

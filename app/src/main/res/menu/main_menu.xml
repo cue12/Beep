@@ -25,6 +25,10 @@
         android:title="@string/action_choose_gemini_model"
         app:showAsAction="never" />
     <item
+        android:id="@+id/action_transcription_options"
+        android:title="@string/action_transcription_options"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_gemini_help"
         android:title="@string/action_gemini_help"
         app:showAsAction="never" />

@@ -159,7 +159,11 @@ public class TranscriptionWorker extends Worker {
         };
 
         if (useGemini) {
-            WhisperService.INSTANCE.transcribeWithGemini(file, callback, getApplicationContext());
+            il.co.bensavit.beep.app.App app = (il.co.bensavit.beep.app.App) getApplicationContext();
+            SettingsManager settingsManager = app.getSettingsManager();
+            String apiKey = settingsManager.getGeminiApiKey();
+            String modelName = settingsManager.getGeminiModelName();
+            WhisperService.INSTANCE.transcribeWithGemini(file, apiKey, modelName, callback, getApplicationContext());
         } else {
             // Ensure Local Whisper is initialized if we are doing offline transcription
             if (!il.co.bensavit.beep.single.LocalWhisper.INSTANCE.isInitialized()) {
