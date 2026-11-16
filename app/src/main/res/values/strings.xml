@@ -131,6 +131,8 @@
     <string name="tutorial_history_desc">View your past transcriptions or a sample message.</string>
     <string name="tutorial_tasks_title">Copying &amp; Managing Tasks</string>
     <string name="tutorial_tasks_desc">Long-press the text of a transcription to copy it to your clipboard.\n\nLong-press anywhere else on the card to remove it.</string>
+    <string name="tutorial_toggle_tasks_title">Minimize / Expand Tasks</string>
+    <string name="tutorial_toggle_tasks_desc">Tap to minimize or expand all task cards. Long-press for more options, or double-tap the task list area to toggle all cards.</string>
     <string name="tutorial_sort_title">Sort Tasks</string>
     <string name="tutorial_sort_desc">Tap the sort button to order task cards by newest or oldest first.</string>
     <string name="tutorial_options_title">More Options</string>
@@ -164,4 +166,7 @@
     <string name="section_gemini_options">Gemini Options</string>
     <string name="option_include_summary_title">Generate Summary</string>
     <string name="option_include_summary_summary">Automatically generate a summary using Gemini (Turn 2) after transcription.</string>
+    <string name="minimize_all_tasks">Minimize All</string>
+    <string name="expand_all_tasks">Expand All</string>
+    <string name="minimize_other_tasks">Minimize Other Cards</string>
 </resources>

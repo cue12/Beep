@@ -47,20 +47,35 @@
       android:layout_marginStart="4dp"
       android:layout_marginEnd="4dp"
       android:text="@string/button_clear"
-      app:layout_constraintEnd_toStartOf="@+id/button_sort_tasks"
+      app:layout_constraintEnd_toStartOf="@+id/button_toggle_all_tasks"
       app:layout_constraintStart_toEndOf="@+id/button_history"
       app:layout_constraintTop_toTopOf="parent" />
+
+    <com.google.android.material.button.MaterialButton
+      android:id="@+id/button_toggle_all_tasks"
+      style="?attr/materialIconButtonStyle"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="4dp"
+      android:layout_marginEnd="4dp"
+      android:contentDescription="@string/minimize_all_tasks"
+      app:icon="@drawable/ic_unfold_less"
+      app:layout_constraintBottom_toBottomOf="@+id/button_clear"
+      app:layout_constraintEnd_toStartOf="@+id/button_sort_tasks"
+      app:layout_constraintStart_toEndOf="@+id/button_clear"
+      app:layout_constraintTop_toTopOf="@+id/button_clear" />
 
     <com.google.android.material.button.MaterialButton
       android:id="@+id/button_sort_tasks"
       style="?attr/materialIconButtonStyle"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
+      android:layout_marginStart="4dp"
       android:contentDescription="@string/sort_tasks"
       app:icon="@drawable/ic_sort_tasks"
       app:layout_constraintBottom_toBottomOf="@+id/button_clear"
       app:layout_constraintEnd_toEndOf="parent"
-      app:layout_constraintStart_toEndOf="@+id/button_clear"
+      app:layout_constraintStart_toEndOf="@+id/button_toggle_all_tasks"
       app:layout_constraintTop_toTopOf="@+id/button_clear" />
 
     <androidx.constraintlayout.widget.Barrier
@@ -68,7 +83,7 @@
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
       app:barrierDirection="bottom"
-      app:constraint_referenced_ids="button_history,button_clear,button_sort_tasks" />
+      app:constraint_referenced_ids="button_history,button_clear,button_toggle_all_tasks,button_sort_tasks" />
 
     <com.google.android.material.card.MaterialCardView
       android:id="@+id/outputCard"
@@ -95,8 +110,7 @@
                 android:id="@+id/transcription_container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:animateLayoutChanges="true" />
+                android:orientation="vertical" />
         </LinearLayout>
       </androidx.core.widget.NestedScrollView>
 

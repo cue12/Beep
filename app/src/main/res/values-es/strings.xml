@@ -132,6 +132,8 @@
     <string name="tutorial_history_desc">Vea sus transcripciones anteriores o un mensaje de muestra.</string>
     <string name="tutorial_tasks_title">Copiar y gestionar tareas</string>
     <string name="tutorial_tasks_desc">Mantenga presionado el texto de una transcripción para copiarlo al portapapeles.\n\nMantenga presionada cualquier otra parte de la tarjeta para eliminarla.</string>
+    <string name="tutorial_toggle_tasks_title">Minimizar / Expandir tareas</string>
+    <string name="tutorial_toggle_tasks_desc">Toque para minimizar o expandir todas las tarjetas de tareas. Mantenga presionado para más opciones, o toque dos veces en el área de la lista para alternar todas las tarjetas.</string>
     <string name="tutorial_sort_title">Ordenar tareas</string>
     <string name="tutorial_sort_desc">Toque el botón de ordenación para clasificar las tarjetas de tareas de más recientes a más antiguas o viceversa.</string>
     <string name="tutorial_options_title">Más opciones</string>
@@ -165,4 +167,7 @@
     <string name="section_gemini_options">Opciones de Gemini</string>
     <string name="option_include_summary_title">Generar resumen</string>
     <string name="option_include_summary_summary">Generar automáticamente un resumen utilizando Gemini después de la transcripción.</string>
+    <string name="minimize_all_tasks">Minimizar todo</string>
+    <string name="expand_all_tasks">Expandir todo</string>
+    <string name="minimize_other_tasks">Minimizar otras tarjetas</string>
 </resources>

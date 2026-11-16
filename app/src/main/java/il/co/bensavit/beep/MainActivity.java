@@ -7,11 +7,17 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.text.method.LinkMovementMethod;
+import android.view.GestureDetector;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.widget.PopupMenu;
+import androidx.appcompat.widget.TooltipCompat;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.IntentSenderRequest;
@@ -161,6 +167,19 @@ public class MainActivity extends AppCompatActivity {
             applyTaskSorting();
             showSnackbar(getString(mSortTasksNewestFirst ? R.string.sort_newest_first : R.string.sort_oldest_first));
         });
+
+        binding.buttonToggleAllTasks.setOnClickListener(v -> {
+            boolean shouldMinimize = !areAllTasksMinimized();
+            setAllTasksMinimized(shouldMinimize);
+        });
+
+        binding.buttonToggleAllTasks.setOnLongClickListener(v -> {
+            showTaskCardContextMenu(v, null);
+            return true;
+        });
+
+        updateToggleAllButtonState();
+        setupTaskContainerGesture();
 
         // Attach Shimmer Reflection light sweep animation to UI elements
         //ShimmerDrawable.attachTo(binding.buttonHistory);
@@ -527,6 +546,7 @@ public class MainActivity extends AppCompatActivity {
                         taskViewModel.stopTranscription();
                         viewModel.removeTaskEntry(taskKey);
                         binding.transcriptionContainer.removeView(taskView);
+                        updateToggleAllButtonState();
                     });
 
             if (!TranscriptionTaskViewModel.isAnyTranscriptionRunning()) {
@@ -779,6 +799,7 @@ public class MainActivity extends AppCompatActivity {
                     viewModel.clearAllResources(unloadNativeModel);
                     binding.transcriptionContainer.removeAllViews();
                     updateModelSubtitle();
+                    updateToggleAllButtonState();
                 })
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
@@ -992,7 +1013,15 @@ public class MainActivity extends AppCompatActivity {
             TransitionManager.beginDelayedTransition((ViewGroup) taskView);
             resultContainer.setVisibility(isVisible ? View.GONE : View.VISIBLE);
             maximizeBtn.setText(isVisible ? R.string.button_maximize_task : R.string.button_minimize_task);
+            updateToggleAllButtonState();
         });
+
+        maximizeBtn.setOnLongClickListener(v -> {
+            showTaskCardContextMenu(v, taskView);
+            return true;
+        });
+
+        updateToggleAllButtonState();
     }
 
     private CharSequence formatHtmlText(String input) {
@@ -1008,6 +1037,133 @@ public class MainActivity extends AppCompatActivity {
     private boolean hasHtmlTags(String text) {
         if (text == null || !text.contains("<")) return false;
         return java.util.regex.Pattern.compile("<[a-zA-Z/][^>]*>").matcher(text).find();
+    }
+
+    private boolean hasTasksWithResult() {
+        if (binding == null) return false;
+        int childCount = binding.transcriptionContainer.getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            View taskView = binding.transcriptionContainer.getChildAt(i);
+            View resultContainer = taskView.findViewById(R.id.container_result);
+            MaterialButton maximizeBtn = taskView.findViewById(R.id.button_maximize);
+            if (maximizeBtn != null && maximizeBtn.getVisibility() == View.VISIBLE && resultContainer != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean areAllTasksMinimized() {
+        if (binding == null) return true;
+        int childCount = binding.transcriptionContainer.getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            View taskView = binding.transcriptionContainer.getChildAt(i);
+            View resultContainer = taskView.findViewById(R.id.container_result);
+            MaterialButton maximizeBtn = taskView.findViewById(R.id.button_maximize);
+            if (maximizeBtn != null && maximizeBtn.getVisibility() == View.VISIBLE && resultContainer != null) {
+                if (resultContainer.getVisibility() == View.VISIBLE) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private void updateToggleAllButtonState() {
+        if (binding == null) return;
+        boolean hasTask = hasTasksWithResult();
+        boolean allMinimized = areAllTasksMinimized();
+        binding.buttonToggleAllTasks.setEnabled(hasTask);
+        binding.buttonToggleAllTasks.setIconResource(allMinimized ? R.drawable.ic_unfold_more : R.drawable.ic_unfold_less);
+        binding.buttonToggleAllTasks.setContentDescription(getString(allMinimized ? R.string.expand_all_tasks : R.string.minimize_all_tasks));
+        TooltipCompat.setTooltipText(binding.buttonToggleAllTasks, getString(allMinimized ? R.string.expand_all_tasks : R.string.minimize_all_tasks));
+    }
+
+    private void setAllTasksMinimized(boolean minimize) {
+        if (binding == null) return;
+        int childCount = binding.transcriptionContainer.getChildCount();
+        if (childCount == 0) return;
+
+        TransitionManager.beginDelayedTransition(binding.transcriptionContainer);
+        for (int i = 0; i < childCount; i++) {
+            View taskView = binding.transcriptionContainer.getChildAt(i);
+            View resultContainer = taskView.findViewById(R.id.container_result);
+            MaterialButton maximizeBtn = taskView.findViewById(R.id.button_maximize);
+            if (resultContainer != null && maximizeBtn != null && maximizeBtn.getVisibility() == View.VISIBLE) {
+                resultContainer.setVisibility(minimize ? View.GONE : View.VISIBLE);
+                maximizeBtn.setText(minimize ? R.string.button_maximize_task : R.string.button_minimize_task);
+            }
+        }
+        updateToggleAllButtonState();
+    }
+
+    private void minimizeOtherTasks(View keepTaskView) {
+        if (binding == null) return;
+        int childCount = binding.transcriptionContainer.getChildCount();
+        if (childCount == 0) return;
+
+        TransitionManager.beginDelayedTransition(binding.transcriptionContainer);
+        for (int i = 0; i < childCount; i++) {
+            View taskView = binding.transcriptionContainer.getChildAt(i);
+            View resultContainer = taskView.findViewById(R.id.container_result);
+            MaterialButton maximizeBtn = taskView.findViewById(R.id.button_maximize);
+            if (resultContainer != null && maximizeBtn != null && maximizeBtn.getVisibility() == View.VISIBLE) {
+                boolean shouldMinimize = (taskView != keepTaskView);
+                resultContainer.setVisibility(shouldMinimize ? View.GONE : View.VISIBLE);
+                maximizeBtn.setText(shouldMinimize ? R.string.button_maximize_task : R.string.button_minimize_task);
+            }
+        }
+        updateToggleAllButtonState();
+    }
+
+    private void showTaskCardContextMenu(View anchorView, View currentTaskView) {
+        PopupMenu popup = new PopupMenu(this, anchorView);
+        popup.getMenu().add(0, 1, 0, getString(R.string.minimize_all_tasks));
+        popup.getMenu().add(0, 2, 1, getString(R.string.expand_all_tasks));
+        if (currentTaskView != null) {
+            popup.getMenu().add(0, 3, 2, getString(R.string.minimize_other_tasks));
+        }
+        popup.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == 1) {
+                setAllTasksMinimized(true);
+                return true;
+            } else if (id == 2) {
+                setAllTasksMinimized(false);
+                return true;
+            } else if (id == 3 && currentTaskView != null) {
+                minimizeOtherTasks(currentTaskView);
+                return true;
+            }
+            return false;
+        });
+        popup.show();
+    }
+
+    private void setupTaskContainerGesture() {
+        GestureDetector doubleTapDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onDown(@NonNull MotionEvent e) {
+                return true;
+            }
+
+            @Override
+            public boolean onDoubleTap(@NonNull MotionEvent e) {
+                if (binding == null || !hasTasksWithResult()) return false;
+                boolean shouldMinimize = !areAllTasksMinimized();
+                setAllTasksMinimized(shouldMinimize);
+                showSnackbar(getString(shouldMinimize ? R.string.minimize_all_tasks : R.string.expand_all_tasks));
+                return true;
+            }
+        });
+
+        binding.transcriptionContainer.setOnTouchListener((v, event) -> {
+            boolean handled = doubleTapDetector.onTouchEvent(event);
+            if (event.getAction() == MotionEvent.ACTION_UP && !handled) {
+                v.performClick();
+            }
+            return handled;
+        });
     }
 
     private CharSequence trimTrailingNewlines(CharSequence text) {

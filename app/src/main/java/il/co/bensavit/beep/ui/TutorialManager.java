@@ -79,15 +79,19 @@ public class TutorialManager {
         sequence.addPrompt(createTutorialPrompt(activity, taskTarget,
                 activity.getString(R.string.tutorial_tasks_title), activity.getString(R.string.tutorial_tasks_desc), onSkipped));
 
-        // 7. Sort Tasks
+        // 7. Minimize / Expand Tasks
+        sequence.addPrompt(createTutorialPrompt(activity, binding.buttonToggleAllTasks,
+                activity.getString(R.string.tutorial_toggle_tasks_title), activity.getString(R.string.tutorial_toggle_tasks_desc), onSkipped));
+
+        // 8. Sort Tasks
         sequence.addPrompt(createTutorialPrompt(activity, binding.buttonSortTasks,
                 activity.getString(R.string.tutorial_sort_title), activity.getString(R.string.tutorial_sort_desc), onSkipped));
 
-        // 8. Menu Options
+        // 9. Menu Options
         sequence.addPrompt(createTutorialPrompt(activity, binding.toolbar,
                 activity.getString(R.string.tutorial_options_title), activity.getString(R.string.tutorial_options_desc), onSkipped));
 
-        // 9. Clear
+        // 10. Clear
         sequence.addPrompt(createTutorialPrompt(activity, binding.buttonClear,
                 activity.getString(R.string.tutorial_clear_title), activity.getString(R.string.tutorial_clear_desc), onSkipped));
 
