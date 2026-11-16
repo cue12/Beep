@@ -4,16 +4,13 @@ import android.app.Dialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.TypedValue;
-import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -41,97 +38,66 @@ public class AboutDialogFragment extends DialogFragment {
     @NonNull
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
-        LinearLayout layout = new LinearLayout(requireContext());
-        layout.setOrientation(LinearLayout.VERTICAL);
-        int padding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics());
-        layout.setPadding(padding, padding / 2, padding, 0);
+        View view = getLayoutInflater().inflate(R.layout.dialog_about, null);
 
-        TextView messageView = new TextView(requireContext());
-        messageView.setText(getString(R.string.about_message_content, BuildConfig.VERSION_NAME, "whisper.cpp", "ggml", "whisper.android"));
-        messageView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        layout.addView(messageView);
+        TextView messageView = view.findViewById(R.id.text_about_message);
+        TextView codeQlLabel = view.findViewById(R.id.text_codeql_label);
+        WebView codeQlBadgeView = view.findViewById(R.id.webview_codeql_badge);
+        TextView feedbackLink = view.findViewById(R.id.text_request_feature);
+        TextView viewLogsLink = view.findViewById(R.id.text_view_logs);
 
-        // CodeQL Security Badge Section
-        LinearLayout codeQlLayout = new LinearLayout(requireContext());
-        codeQlLayout.setOrientation(LinearLayout.VERTICAL);
-        codeQlLayout.setPadding(0, padding, 0, 0);
+        if (messageView != null) {
+            messageView.setText(getString(R.string.about_message_content, BuildConfig.VERSION_NAME, "whisper.cpp", "ggml", "whisper.android"));
+        }
 
-        TextView codeQlLabel = new TextView(requireContext());
-        codeQlLabel.setText(R.string.about_codeql_badge);
-        codeQlLabel.setTextColor(getResources().getColor(android.R.color.holo_blue_dark, requireContext().getTheme()));
-        codeQlLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        codeQlLabel.setOnClickListener(v -> openUrl(CODEQL_WORKFLOW_URL));
-        codeQlLayout.addView(codeQlLabel);
+        if (codeQlLabel != null) {
+            codeQlLabel.setOnClickListener(v -> openUrl(CODEQL_WORKFLOW_URL));
+        }
 
-        WebView codeQlBadgeView = new WebView(requireContext());
-        codeQlBadgeView.setBackgroundColor(Color.TRANSPARENT);
-        codeQlBadgeView.setVerticalScrollBarEnabled(false);
-        codeQlBadgeView.setHorizontalScrollBarEnabled(false);
+        if (codeQlBadgeView != null) {
+            codeQlBadgeView.setBackgroundColor(Color.TRANSPARENT);
+            codeQlBadgeView.setVerticalScrollBarEnabled(false);
+            codeQlBadgeView.setHorizontalScrollBarEnabled(false);
 
-        String htmlData = "<html><head><style>" +
-                "body { margin: 0; padding: 4px 0 0 0; background-color: transparent; display: flex; align-items: center; }" +
-                "img { height: 24px; cursor: pointer; }" +
-                "</style></head><body>" +
-                "<a href='" + CODEQL_WORKFLOW_URL + "'><img src='" + CODEQL_BADGE_URL + "' alt='CodeQL Status'/></a>" +
-                "</body></html>";
+            String htmlData = "<html><head><style>" +
+                    "body { margin: 0; padding: 4px 0 0 0; background-color: transparent; display: flex; align-items: center; }" +
+                    "img { height: 24px; cursor: pointer; }" +
+                    "</style></head><body>" +
+                    "<a href='" + CODEQL_WORKFLOW_URL + "'><img src='" + CODEQL_BADGE_URL + "' alt='CodeQL Status'/></a>" +
+                    "</body></html>";
 
-        codeQlBadgeView.loadDataWithBaseURL(null, htmlData, "text/html", "UTF-8", null);
-        codeQlBadgeView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                openUrl(request.getUrl().toString());
-                return true;
-            }
+            codeQlBadgeView.loadDataWithBaseURL(null, htmlData, "text/html", "UTF-8", null);
+            codeQlBadgeView.setWebViewClient(new WebViewClient() {
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
+                    openUrl(request.getUrl().toString());
+                    return true;
+                }
 
-            @SuppressWarnings("deprecation")
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                openUrl(url);
-                return true;
-            }
-        });
+                @SuppressWarnings("deprecation")
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView v, String url) {
+                    openUrl(url);
+                    return true;
+                }
+            });
+        }
 
-        int badgeHeight = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 32, getResources().getDisplayMetrics());
-        LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, badgeHeight);
-        codeQlBadgeView.setLayoutParams(badgeParams);
-        codeQlLayout.addView(codeQlBadgeView);
+        if (feedbackLink != null) {
+            feedbackLink.setOnClickListener(v -> openPlayStoreFeedback());
+        }
 
-        layout.addView(codeQlLayout);
-
-        TextView feedbackLink = new TextView(requireContext());
-        feedbackLink.setText(R.string.request_feature);
-        feedbackLink.setTextColor(getResources().getColor(android.R.color.holo_blue_dark, requireContext().getTheme()));
-        feedbackLink.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        feedbackLink.setPadding(0, padding / 2, 0, 0);
-        feedbackLink.setOnClickListener(v -> openPlayStoreFeedback());
-        layout.addView(feedbackLink);
-
-        TypedValue colorPrimaryValue = new TypedValue();
-        requireContext().getTheme().resolveAttribute(android.R.attr.colorPrimary, colorPrimaryValue, true);
-        int colorPrimary = colorPrimaryValue.data;
-
-        TextView viewLogsLink = new TextView(requireContext());
-        viewLogsLink.setText(R.string.action_view_logs);
-        viewLogsLink.setTextColor(colorPrimary);
-        viewLogsLink.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        int minTouchTarget = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 48, getResources().getDisplayMetrics());
-        viewLogsLink.setMinHeight(minTouchTarget);
-        viewLogsLink.setGravity(Gravity.CENTER_VERTICAL);
-        viewLogsLink.setPadding(0, padding / 2, 0, padding / 2);
-        viewLogsLink.setOnClickListener(v -> {
-            dismiss();
-            MainViewModel viewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
-            viewModel.requestShowLogWindow();
-        });
-        layout.addView(viewLogsLink);
-
-        ScrollView scrollView = new ScrollView(requireContext());
-        scrollView.addView(layout);
+        if (viewLogsLink != null) {
+            viewLogsLink.setOnClickListener(v -> {
+                dismiss();
+                MainViewModel viewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
+                viewModel.requestShowLogWindow();
+            });
+        }
 
         return new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.about_title)
-                .setView(scrollView)
+                .setView(view)
                 .setPositiveButton(R.string.button_ok, null)
                 .setNeutralButton(R.string.about_licenses, (dialog, which) -> showLicensesDialog())
                 .setNegativeButton(R.string.check_for_updates, (dialog, which) -> {
@@ -140,6 +106,21 @@ public class AboutDialogFragment extends DialogFragment {
                     }
                 })
                 .create();
+    }
+
+    @Override
+    public void onDestroyView() {
+        if (getDialog() != null) {
+            WebView codeQlBadgeView = getDialog().findViewById(R.id.webview_codeql_badge);
+            if (codeQlBadgeView != null) {
+                if (codeQlBadgeView.getParent() instanceof ViewGroup) {
+                    ((ViewGroup) codeQlBadgeView.getParent()).removeView(codeQlBadgeView);
+                }
+                codeQlBadgeView.stopLoading();
+                codeQlBadgeView.destroy();
+            }
+        }
+        super.onDestroyView();
     }
 
     private void openUrl(String url) {
@@ -165,18 +146,15 @@ public class AboutDialogFragment extends DialogFragment {
             Scanner s = new Scanner(is).useDelimiter("\\A");
             String content = s.hasNext() ? s.next() : "";
 
-            TextView textView = new TextView(requireContext());
-            textView.setText(content);
-            textView.setPadding(48, 48, 48, 48);
-            textView.setTypeface(Typeface.MONOSPACE);
-            textView.setTextSize(10);
-
-            ScrollView scrollView = new ScrollView(requireContext());
-            scrollView.addView(textView);
+            View view = getLayoutInflater().inflate(R.layout.dialog_log_window, null);
+            TextView textView = view.findViewById(R.id.text_logs);
+            if (textView != null) {
+                textView.setText(content);
+            }
 
             new MaterialAlertDialogBuilder(requireContext())
                     .setTitle(R.string.about_licenses)
-                    .setView(scrollView)
+                    .setView(view)
                     .setPositiveButton(R.string.button_close, null)
                     .show();
         } catch (IOException e) {

@@ -45,13 +45,15 @@
                 android:visibility="gone"
                 tools:text="Elapsed time: 00:05.2s" />
 
-            <ProgressBar
+            <com.google.android.material.progressindicator.CircularProgressIndicator
                 android:id="@+id/task_progress_bar"
-                style="?android:attr/progressBarStyleSmall"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:visibility="gone" />
+                android:indeterminate="true"
+                android:visibility="gone"
+                app:indicatorSize="20dp"
+                app:trackThickness="2.5dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_maximize"

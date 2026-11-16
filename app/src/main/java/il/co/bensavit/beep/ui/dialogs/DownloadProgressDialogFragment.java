@@ -2,8 +2,7 @@ package il.co.bensavit.beep.ui.dialogs;
 
 import android.app.Dialog;
 import android.os.Bundle;
-import android.util.TypedValue;
-import android.widget.LinearLayout;
+import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -35,16 +34,10 @@ public class DownloadProgressDialogFragment extends DialogFragment {
         String modelName = getArguments() != null ? getArguments().getString(ARG_MODEL_NAME) : "";
         MainViewModel viewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
 
-        LinearLayout layout = new LinearLayout(requireContext());
-        layout.setOrientation(LinearLayout.VERTICAL);
-        int padding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24, getResources().getDisplayMetrics());
-        layout.setPadding(padding, padding, padding, padding);
+        View view = getLayoutInflater().inflate(R.layout.dialog_download_progress, null);
+        progressIndicator = view.findViewById(R.id.progress_indicator);
 
-        progressIndicator = new LinearProgressIndicator(requireContext());
-        progressIndicator.setIndeterminate(false);
-        progressIndicator.setMax(100);
-        layout.addView(progressIndicator);
-
+        viewModel.downloadProgress.removeObservers(this);
         viewModel.downloadProgress.observe(this, progress -> {
             if (progressIndicator != null && progress >= 0) {
                 progressIndicator.setProgress(progress);
@@ -54,7 +47,7 @@ public class DownloadProgressDialogFragment extends DialogFragment {
         return new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(getString(R.string.dialog_downloading_model_title))
                 .setMessage(getString(R.string.downloading_model, modelName))
-                .setView(layout)
+                .setView(view)
                 .setCancelable(false)
                 .setNegativeButton(R.string.button_cancel, (dialog, which) -> {
                     viewModel.cancelDownload();

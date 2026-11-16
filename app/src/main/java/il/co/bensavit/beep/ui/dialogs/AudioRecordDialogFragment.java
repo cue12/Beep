@@ -7,9 +7,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.TypedValue;
-import android.view.Gravity;
-import android.widget.LinearLayout;
+import android.view.View;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -56,24 +54,8 @@ public class AudioRecordDialogFragment extends DialogFragment {
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
         MainViewModel viewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
 
-        LinearLayout layout = new LinearLayout(requireContext());
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setGravity(Gravity.CENTER_HORIZONTAL);
-        int padding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24, getResources().getDisplayMetrics());
-        layout.setPadding(padding, padding, padding, padding);
-
-        TextView statusText = new TextView(requireContext());
-        statusText.setText(R.string.recording_dialog_title);
-        statusText.setTextSize(16);
-        statusText.setGravity(Gravity.CENTER);
-        layout.addView(statusText);
-
-        timerTextView = new TextView(requireContext());
-        timerTextView.setText("00:00");
-        timerTextView.setTextSize(32);
-        timerTextView.setGravity(Gravity.CENTER);
-        timerTextView.setPadding(0, padding / 2, 0, 0);
-        layout.addView(timerTextView);
+        View view = getLayoutInflater().inflate(R.layout.dialog_audio_record, null);
+        timerTextView = view.findViewById(R.id.text_timer);
 
         boolean started = startRecording();
         if (!started) {
@@ -82,7 +64,7 @@ public class AudioRecordDialogFragment extends DialogFragment {
 
         return new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.action_record_audio)
-                .setView(layout)
+                .setView(view)
                 .setCancelable(false)
                 .setPositiveButton(R.string.button_stop_and_transcribe, (dialog, which) -> {
                     stopRecording(true);

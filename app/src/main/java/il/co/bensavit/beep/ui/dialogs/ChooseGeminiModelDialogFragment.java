@@ -2,12 +2,9 @@ package il.co.bensavit.beep.ui.dialogs;
 
 import android.app.Dialog;
 import android.os.Bundle;
-import android.util.TypedValue;
 import android.view.View;
 import android.widget.ArrayAdapter;
-import android.widget.LinearLayout;
 import android.widget.ListView;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -19,12 +16,11 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 import il.co.bensavit.beep.MainViewModel;
 import il.co.bensavit.beep.R;
-
-import java.util.Objects;
 
 public class ChooseGeminiModelDialogFragment extends DialogFragment {
 
@@ -44,27 +40,17 @@ public class ChooseGeminiModelDialogFragment extends DialogFragment {
                 ? savedInstanceState.getString(KEY_SELECTED_MODEL, currentModel) 
                 : currentModel;
 
-        LinearLayout layout = new LinearLayout(requireContext());
-        layout.setOrientation(LinearLayout.VERTICAL);
-        int padding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics());
-        layout.setPadding(padding, padding / 2, padding, 0);
+        View view = getLayoutInflater().inflate(R.layout.dialog_choose_gemini_model, null);
+        TextView currentModelView = view.findViewById(R.id.text_current_model);
+        TextView keyWarningView = view.findViewById(R.id.text_key_warning);
+        View progressBar = view.findViewById(R.id.progress_fetching);
+        ListView listView = view.findViewById(R.id.list_gemini_models);
 
-        TextView currentModelView = new TextView(requireContext());
         currentModelView.setText(getString(R.string.dialog_choose_gemini_model_current, currentModel));
-        currentModelView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        currentModelView.setPadding(0, 0, 0, padding / 2);
-        layout.addView(currentModelView);
 
-        ProgressBar progressBar = new ProgressBar(requireContext());
-        progressBar.setVisibility(View.GONE);
-        layout.addView(progressBar);
-
-        ListView listView = new ListView(requireContext());
         listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-
         adapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_list_item_single_choice, modelList);
         listView.setAdapter(adapter);
-        layout.addView(listView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f));
 
         // Populate model list initially
         List<String> cachedModels = viewModel.geminiModels.getValue();
@@ -76,19 +62,21 @@ public class ChooseGeminiModelDialogFragment extends DialogFragment {
             listView.setItemChecked(selectedIndex, true);
         }
 
-        listView.setOnItemClickListener((parent, view, position, id) -> {
+        listView.setOnItemClickListener((parent, v, position, id) -> {
             if (position >= 0 && position < modelList.size()) {
                 selectedModel = modelList.get(position);
                 listView.setItemChecked(position, true);
             }
         });
 
+        viewModel.isFetchingGeminiModels.removeObservers(this);
         viewModel.isFetchingGeminiModels.observe(this, isFetching -> {
-            if (isFetching != null) {
+            if (isFetching != null && progressBar != null) {
                 progressBar.setVisibility(isFetching ? View.VISIBLE : View.GONE);
             }
         });
 
+        viewModel.geminiModels.removeObservers(this);
         viewModel.geminiModels.observe(this, models -> {
             String updatedCurrentModel = viewModel.getGeminiModelName();
             currentModelView.setText(getString(R.string.dialog_choose_gemini_model_current, updatedCurrentModel));
@@ -102,17 +90,16 @@ public class ChooseGeminiModelDialogFragment extends DialogFragment {
         });
 
         if (viewModel.getGeminiApiKey().isEmpty()) {
-            TextView keyWarningView = new TextView(requireContext());
-            keyWarningView.setText(R.string.gemini_key_required);
-            keyWarningView.setPadding(0, 0, 0, padding / 2);
-            layout.addView(keyWarningView, 1);
+            if (keyWarningView != null) {
+                keyWarningView.setVisibility(View.VISIBLE);
+            }
         } else if (cachedModels == null || cachedModels.isEmpty()) {
             viewModel.fetchGeminiModels();
         }
 
         return new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.dialog_choose_gemini_model_title)
-                .setView(layout)
+                .setView(view)
                 .setPositiveButton(R.string.dialog_gemini_config_save, (dialog, which) -> {
                     if (selectedModel != null && !selectedModel.isEmpty()) {
                         viewModel.setGeminiModel(selectedModel);

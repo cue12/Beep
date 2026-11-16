@@ -1,9 +1,8 @@
 package il.co.bensavit.beep.ui.dialogs;
 
 import android.app.Dialog;
-import android.graphics.Typeface;
 import android.os.Bundle;
-import android.widget.ScrollView;
+import android.view.View;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -30,18 +29,16 @@ public class LogWindowDialogFragment extends DialogFragment {
     @NonNull
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
-        TextView textView = new TextView(requireContext());
-        textView.setText(Logger.getLogs());
-        textView.setPadding(48, 48, 48, 48);
-        textView.setTypeface(Typeface.MONOSPACE);
-        textView.setTextSize(12);
+        View view = getLayoutInflater().inflate(R.layout.dialog_log_window, null);
+        TextView textView = view.findViewById(R.id.text_logs);
 
-        ScrollView scrollView = new ScrollView(requireContext());
-        scrollView.addView(textView);
+        if (textView != null) {
+            textView.setText(Logger.getLogs());
+        }
 
         return new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.dialog_logs_title)
-                .setView(scrollView)
+                .setView(view)
                 .setPositiveButton(R.string.button_close, null)
                 .setNeutralButton(R.string.button_clear, (dialog, which) -> {
                     Logger.clear();

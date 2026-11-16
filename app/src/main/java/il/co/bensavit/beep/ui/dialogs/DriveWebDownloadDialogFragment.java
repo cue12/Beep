@@ -4,7 +4,6 @@ import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.content.DialogInterface;
 import android.os.Bundle;
-import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
@@ -12,7 +11,6 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 
 import androidx.annotation.NonNull;
@@ -59,22 +57,9 @@ public class DriveWebDownloadDialogFragment extends DialogFragment {
         String modelName = getArguments() != null ? getArguments().getString(ARG_MODEL_NAME) : "";
         String driveUrl = getArguments() != null ? getArguments().getString(ARG_DRIVE_URL) : "";
 
-        LinearLayout container = new LinearLayout(requireContext());
-        container.setOrientation(LinearLayout.VERTICAL);
-
-        progressBar = new ProgressBar(requireContext(), null, android.R.attr.progressBarStyleHorizontal);
-        progressBar.setIndeterminate(true);
-        container.addView(progressBar, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-
-        webView = new WebView(requireContext());
-        LinearLayout.LayoutParams webViewParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 360, getResources().getDisplayMetrics())
-        );
-        container.addView(webView, webViewParams);
+        View container = getLayoutInflater().inflate(R.layout.dialog_drive_web_download, null);
+        progressBar = container.findViewById(R.id.progress_bar);
+        webView = container.findViewById(R.id.web_view);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
