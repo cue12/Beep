@@ -398,8 +398,13 @@ graph TD
 ### Architectural Design Patterns
 1. **Model-View-ViewModel (MVVM)**:
    * Decouples UI rendering from business logic. UI components observe `LiveData` emitted by ViewModels.
-2. **Unidirectional Data Flow (UDF)**:
-   * State changes flow downward from `ViewModel` -> `UI`, and user actions trigger events upward from `UI` -> `ViewModel` -> `Service`.
+2. **Single Source of Truth (SSOT) & Unidirectional Data Flow (UDF)**:
+   * Every piece of application state has a single, authoritative owner in the Data or Service layer. State changes flow downward from `Repository/Service` -> `ViewModel` -> `UI`, while user actions trigger events upward from `UI` -> `ViewModel` -> `Repository/Service`.
+   * **Domain SSOT Authorities in Beep**:
+     * **Application Settings & User Preferences**: `SettingsManager` (backed by `SharedPreferences` / `EncryptedSharedPreferences`) is the SSOT. `MainViewModel` exposes these as reactive `LiveData` streams. The UI must observe these streams rather than storing mutable duplicate fields.
+     * **Model Catalog & Downloaded Artifacts**: `ModelRepository` is the SSOT for available model metadata, OCI/Direct remote endpoints, SHA-1 checksum verification, and local file status.
+     * **Active Tasks & Execution Engine State**: `WhisperService` and `TranscriptionTaskViewModel` act as the SSOT for transcription task progress and execution status.
+     * **Transcription History & File Artifacts**: Storage Utilities / History Repositories serve as the SSOT for persisted audio recordings and generated transcription outputs.
 3. **Singleton Pattern**:
    * Applied to `WhisperService` and `LocalWhisper` to guarantee single-instance control over heavy native C++ memory resources and prevent concurrent native access conflicts.
 4. **Repository Pattern**:

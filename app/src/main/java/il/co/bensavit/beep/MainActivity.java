@@ -88,7 +88,6 @@ public class MainActivity extends AppCompatActivity {
     private final BackgroundAnimator backgroundAnimator = new BackgroundAnimator();
     private ShimmerDrawable cardShimmer;
     private final Runnable showTutorialRunnable = this::showTutorialPrompt;
-    private boolean mSortTasksNewestFirst = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -159,13 +158,10 @@ public class MainActivity extends AppCompatActivity {
         binding.buttonClear.setOnClickListener(this::onClearClick);
         binding.buttonClear.setOnLongClickListener(this::onClearLongClick);
 
-        mSortTasksNewestFirst = viewModel.isSortTasksNewestFirst();
-
         binding.buttonSortTasks.setOnClickListener(v -> {
-            mSortTasksNewestFirst = !mSortTasksNewestFirst;
-            viewModel.setSortTasksNewestFirst(mSortTasksNewestFirst);
-            applyTaskSorting();
-            showSnackbar(getString(mSortTasksNewestFirst ? R.string.sort_newest_first : R.string.sort_oldest_first));
+            boolean nextSortOrder = !viewModel.isSortTasksNewestFirst();
+            viewModel.setSortTasksNewestFirst(nextSortOrder);
+            showSnackbar(getString(nextSortOrder ? R.string.sort_newest_first : R.string.sort_oldest_first));
         });
 
         binding.buttonToggleAllTasks.setOnClickListener(v -> {
@@ -345,6 +341,12 @@ public class MainActivity extends AppCompatActivity {
 
         viewModel.currentModelName.observe(this, this::updateModelSubtitle);
 
+        viewModel.isSortTasksNewestFirst.observe(this, newestFirst -> {
+            if (newestFirst != null) {
+                applyTaskSorting();
+            }
+        });
+
         viewModel.onFileReadyForTranscription.observe(this, file -> {
             if (file != null) {
                 addTranscriptionTask(file);
@@ -434,12 +436,13 @@ public class MainActivity extends AppCompatActivity {
             taskViews.add(binding.transcriptionContainer.getChildAt(i));
         }
 
+        boolean newestFirst = viewModel == null || viewModel.isSortTasksNewestFirst();
         Collections.sort(taskViews, (v1, v2) -> {
             Object tag1 = v1.getTag();
             Object tag2 = v2.getTag();
             long t1 = (tag1 instanceof Long) ? (Long) tag1 : 0L;
             long t2 = (tag2 instanceof Long) ? (Long) tag2 : 0L;
-            return mSortTasksNewestFirst ? Long.compare(t2, t1) : Long.compare(t1, t2);
+            return newestFirst ? Long.compare(t2, t1) : Long.compare(t1, t2);
         });
 
         LayoutTransition transition = binding.transcriptionContainer.getLayoutTransition();
@@ -466,7 +469,8 @@ public class MainActivity extends AppCompatActivity {
         long timestamp = restoredTaskEntry != null ? restoredTaskEntry.timestamp : System.currentTimeMillis();
         taskView.setTag(timestamp);
 
-        if (mSortTasksNewestFirst) {
+        boolean newestFirst = viewModel == null || viewModel.isSortTasksNewestFirst();
+        if (newestFirst) {
             binding.transcriptionContainer.addView(taskView, 0);
             binding.scrollView.post(() -> binding.scrollView.fullScroll(View.FOCUS_UP));
         } else {

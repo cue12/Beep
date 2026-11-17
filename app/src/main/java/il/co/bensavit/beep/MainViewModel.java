@@ -47,6 +47,10 @@ import il.co.bensavit.beep.utils.StorageUtils;
 /**
  * ViewModel responsible for application-level settings, model repository management,
  * Gemini configuration, audio file sharing/conversion, and managing task ViewModelStores.
+ *
+ * <p>Architectural Role: Reactive bridge following the Single Source of Truth (SSOT) pattern.
+ * Consumes persistent state from SSOT data authorities ({@link SettingsManager} and {@link ModelRepository})
+ * and exposes read-only {@link LiveData} streams to the UI layer ({@link MainActivity}).
  */
 @Keep
 public class MainViewModel extends AndroidViewModel {
@@ -93,6 +97,12 @@ public class MainViewModel extends AndroidViewModel {
 
     private final MutableLiveData<String> _currentModelName = new MutableLiveData<>(null);
     public final LiveData<String> currentModelName = _currentModelName;
+
+    private final MutableLiveData<Boolean> _isSortTasksNewestFirst = new MutableLiveData<>(true);
+    public final LiveData<Boolean> isSortTasksNewestFirst = _isSortTasksNewestFirst;
+
+    private final MutableLiveData<String> _geminiModelName = new MutableLiveData<>("auto");
+    public final LiveData<String> geminiModelName = _geminiModelName;
 
     private final MutableLiveData<List<String>> _geminiModels = new MutableLiveData<>(new ArrayList<>());
     public final LiveData<List<String>> geminiModels = _geminiModels;
@@ -476,6 +486,8 @@ public class MainViewModel extends AndroidViewModel {
         _isGeminiSelected.setValue(geminiSelected);
         _isGeminiSummaryEnabled.setValue(settingsManager.isGeminiSummaryEnabled());
         _isVibrationEnabled.setValue(settingsManager.isVibrationEnabled());
+        _isSortTasksNewestFirst.setValue(settingsManager.isSortTasksNewestFirst());
+        _geminiModelName.setValue(settingsManager.getGeminiModelName());
 
         _language.setValue(settingsManager.getLanguage());
 
@@ -546,6 +558,7 @@ public class MainViewModel extends AndroidViewModel {
 
     public void setGeminiModel(String model) {
         settingsManager.setGeminiModelName(model);
+        _geminiModelName.setValue(model);
     }
 
     public void checkModelAvailability(String modelId, String apiKey, WhisperService.TranscriptionCallback callback) {
@@ -807,15 +820,16 @@ public class MainViewModel extends AndroidViewModel {
 
     public void setLanguage(String languageCode) {
         settingsManager.setLanguage(languageCode);
-        _language.postValue(languageCode);
+        _language.setValue(languageCode);
     }
 
     public boolean isSortTasksNewestFirst() {
-        return settingsManager.isSortTasksNewestFirst();
+        return !Boolean.FALSE.equals(_isSortTasksNewestFirst.getValue());
     }
 
     public void setSortTasksNewestFirst(boolean newestFirst) {
         settingsManager.setSortTasksNewestFirst(newestFirst);
+        _isSortTasksNewestFirst.setValue(newestFirst);
     }
 
     public boolean isGeminiSummaryEnabled() {
@@ -824,7 +838,7 @@ public class MainViewModel extends AndroidViewModel {
 
     public void setGeminiSummaryEnabled(boolean enabled) {
         settingsManager.setGeminiSummaryEnabled(enabled);
-        _isGeminiSummaryEnabled.postValue(enabled);
+        _isGeminiSummaryEnabled.setValue(enabled);
     }
 
     public boolean isVibrationEnabled() {
@@ -833,7 +847,7 @@ public class MainViewModel extends AndroidViewModel {
 
     public void setVibrationEnabled(boolean enabled) {
         settingsManager.setVibrationEnabled(enabled);
-        _isVibrationEnabled.postValue(enabled);
+        _isVibrationEnabled.setValue(enabled);
     }
 
     @Override

@@ -7,6 +7,13 @@ import android.util.Log;
 import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKey;
 
+/**
+ * Single Source of Truth (SSOT) for application preferences and secure key configuration.
+ * All preference mutations and persistent user configurations (e.g., selected model,
+ * Gemini API key, summary toggles, sorting preferences) MUST be managed through this class.
+ * Presentation layers (ViewModels/Activities) should consume preference data via this SSOT
+ * rather than maintaining duplicate local mutable fields.
+ */
 public class SettingsManager {
     private static final String TAG = "SettingsManager";
     private static final String PREFS_NAME = "BeepPrefs";

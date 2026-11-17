@@ -45,6 +45,15 @@ import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import org.reactivestreams.Subscription;
 
+/**
+ * Singleton execution service for offline Whisper native C++ inference and online Google Gemini AI calls.
+ *
+ * <p>Architectural Role (SSOT & Stateless Execution):
+ * Acts as the Single Source of Truth (SSOT) for active transcription engine execution and runtime task routing.
+ * Designed to be strictly stateless with respect to configuration: API keys, model selections, and options
+ * are passed explicitly per-request from {@link il.co.bensavit.beep.data.SettingsManager} (the persistent SSOT),
+ * eliminating state desynchronization and race conditions across background worker threads.
+ */
 public class WhisperService {
   public interface TranscriptionCallback {
     void onProgress(String message);

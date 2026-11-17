@@ -23,6 +23,13 @@ import il.co.bensavit.beep.utils.Logger;
 import il.co.bensavit.beep.utils.ModelUtils;
 import il.co.bensavit.beep.utils.StorageUtils;
 
+/**
+ * Single Source of Truth (SSOT) for Whisper AI model catalog metadata, remote download endpoints,
+ * local file status, SHA-1 checksum verification, and download lifecycles.
+ * All model existence checks, download progress tracking, and file verification MUST be routed
+ * through this repository. UI components and ViewModels should query ModelRepository directly
+ * rather than performing ad-hoc file inspection.
+ */
 public class ModelRepository {
     private static final String TAG = "ModelRepository";
 
