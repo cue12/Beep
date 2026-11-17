@@ -34,6 +34,11 @@ public class App extends Application {
     modelRepository = new ModelRepository(this);
     executorService = Executors.newFixedThreadPool(Math.max(2, Runtime.getRuntime().availableProcessors()));
 
+    String apiKey = settingsManager.getGeminiApiKey();
+    if (apiKey != null && !apiKey.trim().isEmpty()) {
+      WhisperService.INSTANCE.fetchGeminiModels(apiKey.trim(), null, null);
+    }
+
     scheduleCleanup();
   }
 

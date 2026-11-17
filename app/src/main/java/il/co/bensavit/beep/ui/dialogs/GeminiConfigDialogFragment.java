@@ -49,6 +49,52 @@ public class GeminiConfigDialogFragment extends DialogFragment {
             });
         }
 
+        View testBtn = view.findViewById(R.id.button_test_key);
+        View progressBar = view.findViewById(R.id.progress_test_key);
+        TextView resultText = view.findViewById(R.id.text_test_result);
+
+        if (testBtn != null) {
+            testBtn.setOnClickListener(v -> {
+                if (input == null) return;
+                String keyToTest = input.getText().toString().trim();
+                if (keyToTest.isEmpty()) {
+                    if (resultText != null && isAdded()) {
+                        resultText.setVisibility(View.VISIBLE);
+                        resultText.setTextColor(requireContext().getColor(android.R.color.holo_red_dark));
+                        resultText.setText(getString(R.string.key_invalid, getString(R.string.error_key_empty)));
+                    }
+                    return;
+                }
+
+                testBtn.setEnabled(false);
+                if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+                if (resultText != null) resultText.setVisibility(View.GONE);
+
+                viewModel.testGeminiApiKey(keyToTest,
+                    successMsg -> {
+                        if (!isAdded() || getContext() == null) return;
+                        testBtn.setEnabled(true);
+                        if (progressBar != null) progressBar.setVisibility(View.GONE);
+                        if (resultText != null) {
+                            resultText.setVisibility(View.VISIBLE);
+                            resultText.setTextColor(requireContext().getColor(android.R.color.holo_green_dark));
+                            resultText.setText(getString(R.string.key_valid));
+                        }
+                    },
+                    errorMsg -> {
+                        if (!isAdded() || getContext() == null) return;
+                        testBtn.setEnabled(true);
+                        if (progressBar != null) progressBar.setVisibility(View.GONE);
+                        if (resultText != null) {
+                            resultText.setVisibility(View.VISIBLE);
+                            resultText.setTextColor(requireContext().getColor(android.R.color.holo_red_dark));
+                            resultText.setText(getString(R.string.key_invalid, errorMsg));
+                        }
+                    }
+                );
+            });
+        }
+
         return new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.dialog_gemini_config_title)
                 .setView(view)

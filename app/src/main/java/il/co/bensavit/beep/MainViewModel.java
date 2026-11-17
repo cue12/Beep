@@ -552,6 +552,10 @@ public class MainViewModel extends AndroidViewModel {
         whisperService.checkModelAvailability(modelId, apiKey, callback);
     }
 
+    public void testGeminiApiKey(String apiKey, java.util.function.Consumer<String> onSuccess, java.util.function.Consumer<String> onError) {
+        whisperService.testApiKey(apiKey, onSuccess, onError);
+    }
+
     public void loadLocalModel(String modelName, Runnable onComplete) {
         if (Boolean.TRUE.equals(TranscriptionTaskViewModel.isAnyTranscriptionRunning())) {
             showUserMessage("Cannot change model while transcription is running");

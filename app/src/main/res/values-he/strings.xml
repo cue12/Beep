@@ -19,6 +19,11 @@
     <string name="dialog_gemini_config_title">מפתח API של Gemini</string>
     <string name="dialog_gemini_config_hint">הזן את מפתח ה-API שלך</string>
     <string name="dialog_gemini_config_save">שמור</string>
+    <string name="button_test_key">בדוק מפתח</string>
+    <string name="testing_key">בודק מפתח API...</string>
+    <string name="key_valid">✓ מפתח API תקין!</string>
+    <string name="key_invalid">✗ בדיקה נכשלה: %1$s</string>
+    <string name="error_key_empty">מפתח ה-API אינו יכול להיות ריק</string>
     <string name="about_title">אודות ביפ</string>
     <string name="about_message_content">ביפ! v%1$s היא אפליקציית תמלול חינמית וממוקדת פרטיות לאנדרואיד הכוללת מצב אופליין בעל ביצועים גבוהים הפועל ללא צורך בהרשמה. היא מבוססת על %2$s, %3$s ו-%4$s, ומבטיחה שהנתונים שלך יישארו אך ורק על המכשיר שלך לפרטיות מלאה במצב אופליין.\n\nחשוב: לא ניתן להבטיח פרטיות בעת שימוש במצב אונליין, שכן הסכם המשתמש הסופי עם Gemini שולט בפעילות זו. השתמש במצב אופליין לפרטיות מרבית.</string>
     <string name="about_licenses">רישיונות</string>

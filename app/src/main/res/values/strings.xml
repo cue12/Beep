@@ -18,6 +18,11 @@
     <string name="dialog_gemini_config_title">Gemini API Key</string>
     <string name="dialog_gemini_config_hint">Enter your API Key</string>
     <string name="dialog_gemini_config_save">Save</string>
+    <string name="button_test_key">Test Key</string>
+    <string name="testing_key">Testing API Key...</string>
+    <string name="key_valid">✓ API Key is valid!</string>
+    <string name="key_invalid">✗ Validation failed: %1$s</string>
+    <string name="error_key_empty">API Key cannot be empty</string>
     <string name="about_title">About Beep</string>
     <string name="about_message_content">Beep! v%1$s is a free, privacy-focused Android transcription app featuring a high-performance offline mode that works without registration. Powered by %2$s, %3$s and %4$s, it ensures your data remains strictly on your device for total privacy in offline mode.\n\nIMPORTANT: Privacy cannot be guaranteed while using online mode, as the end-user agreement with Gemini controls that activity. Use offline mode for maximum privacy.</string>
     <string name="about_licenses">Licenses</string>
