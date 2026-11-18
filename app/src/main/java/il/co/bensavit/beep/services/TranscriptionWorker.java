@@ -114,50 +114,7 @@ public class TranscriptionWorker extends Worker {
         final CompletableFuture<String> future = new CompletableFuture<>();
         final AtomicReference<String> actualModelSelected = new AtomicReference<>();
 
-        WhisperService.TranscriptionCallback callback = new WhisperService.TranscriptionCallback() {
-            @Override
-            public void onProgress(String message) {
-                if (message != null && message.startsWith("MODEL_SELECTED:")) {
-                    actualModelSelected.set(message.substring("MODEL_SELECTED:".length()));
-                }
-                Data.Builder progressBuilder = new Data.Builder().putString(KEY_PROGRESS, message);
-                String selectedModel = actualModelSelected.get();
-                if (selectedModel != null && !selectedModel.isEmpty()) {
-                    progressBuilder.putString(KEY_MODEL_NAME, selectedModel);
-                }
-                setProgressAsync(progressBuilder.build());
-                try {
-                    NotificationManager notificationManager = (NotificationManager) getApplicationContext().getSystemService(Context.NOTIFICATION_SERVICE);
-                    if (notificationManager != null) {
-                        String notificationText = message;
-                        if (message != null && message.startsWith("MODEL_SELECTED:")) {
-                            String modelId = message.substring("MODEL_SELECTED:".length());
-                            notificationText = getApplicationContext().getString(R.string.model_subtitle, ModelUtils.formatModelDisplayName(getApplicationContext(), modelId));
-                        }
-                        Notification notification = new NotificationCompat.Builder(getApplicationContext(), CHANNEL_ID)
-                                .setContentTitle(getApplicationContext().getString(R.string.app_name) + " Transcription")
-                                .setContentText(notificationText)
-                                .setSmallIcon(R.mipmap.ic_launcher)
-                                .setOngoing(true)
-                                .setPriority(NotificationCompat.PRIORITY_LOW)
-                                .build();
-                        notificationManager.notify(notificationId, notification);
-                    }
-                } catch (Exception e) {
-                    // Ignore notification update error if worker is finishing or stopped
-                }
-            }
-
-            @Override
-            public void onSuccess(String result) {
-                future.complete(result);
-            }
-
-            @Override
-            public void onError(String error) {
-                future.completeExceptionally(new Exception(error));
-            }
-        };
+        TranscriptionCallback callback = new WorkerTranscriptionCallback(this, actualModelSelected, future);
 
         if (useGemini) {
             il.co.bensavit.beep.app.App app = (il.co.bensavit.beep.app.App) getApplicationContext();
@@ -220,5 +177,64 @@ public class TranscriptionWorker extends Worker {
         super.onStopped();
         Logger.i(TAG, "onStopped called, cancelling transcription");
         WhisperService.INSTANCE.stopCurrentTranscription();
+    }
+
+    private static class WorkerTranscriptionCallback implements TranscriptionCallback {
+        private final TranscriptionWorker worker;
+        private final AtomicReference<String> actualModelSelected;
+        private final CompletableFuture<String> future;
+
+        public WorkerTranscriptionCallback(
+                TranscriptionWorker worker,
+                AtomicReference<String> actualModelSelected,
+                CompletableFuture<String> future) {
+            this.worker = worker;
+            this.actualModelSelected = actualModelSelected;
+            this.future = future;
+        }
+
+        @Override
+        public void onProgress(String message) {
+            if (message != null && message.startsWith("MODEL_SELECTED:")) {
+                actualModelSelected.set(message.substring("MODEL_SELECTED:".length()));
+            }
+            Data.Builder progressBuilder = new Data.Builder().putString(KEY_PROGRESS, message);
+            String selectedModel = actualModelSelected.get();
+            if (selectedModel != null && !selectedModel.isEmpty()) {
+                progressBuilder.putString(KEY_MODEL_NAME, selectedModel);
+            }
+            try {
+                worker.setProgressAsync(progressBuilder.build());
+                Context context = worker.getApplicationContext();
+                NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (notificationManager != null) {
+                    String notificationText = message;
+                    if (message != null && message.startsWith("MODEL_SELECTED:")) {
+                        String modelId = message.substring("MODEL_SELECTED:".length());
+                        notificationText = context.getString(R.string.model_subtitle, ModelUtils.formatModelDisplayName(context, modelId));
+                    }
+                    Notification notification = new NotificationCompat.Builder(context, CHANNEL_ID)
+                            .setContentTitle(context.getString(R.string.app_name) + " Transcription")
+                            .setContentText(notificationText)
+                            .setSmallIcon(R.mipmap.ic_launcher)
+                            .setOngoing(true)
+                            .setPriority(NotificationCompat.PRIORITY_LOW)
+                            .build();
+                    notificationManager.notify(worker.notificationId, notification);
+                }
+            } catch (Exception e) {
+                // Ignore notification update error if worker is finishing or stopped
+            }
+        }
+
+        @Override
+        public void onSuccess(String result) {
+            future.complete(result);
+        }
+
+        @Override
+        public void onError(String error) {
+            future.completeExceptionally(new Exception(error));
+        }
     }
 }

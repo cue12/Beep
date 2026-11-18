@@ -40,7 +40,6 @@ import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import org.reactivestreams.Subscription;
 
@@ -54,10 +53,80 @@ import org.reactivestreams.Subscription;
  * eliminating state desynchronization and race conditions across background worker threads.
  */
 public class WhisperService {
-  public interface TranscriptionCallback {
-    void onProgress(String message);
-    void onSuccess(String result);
-    void onError(String error);
+
+
+  private class ActiveTrackingCallback implements TranscriptionCallback {
+    private final TranscriptionCallback delegate;
+    private boolean completed = false;
+
+    public ActiveTrackingCallback(TranscriptionCallback delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public void onProgress(String message) {
+      if (delegate != null) delegate.onProgress(message);
+    }
+
+    @Override
+    public synchronized void onSuccess(String result) {
+      if (!completed) {
+        completed = true;
+        decrementActive();
+        if (delegate != null) delegate.onSuccess(result);
+      }
+    }
+
+    @Override
+    public synchronized void onError(String error) {
+      if (!completed) {
+        completed = true;
+        decrementActive();
+        if (delegate != null) delegate.onError(error);
+      }
+    }
+  }
+
+  private class ModelAvailabilityCallback implements TranscriptionCallback {
+    private final File sampleFile;
+    private final byte[] existingBytes;
+    private final List<String> priorityList;
+    private final int index;
+    private final String modelId;
+    private final String apiKey;
+    private final TranscriptionCallback callback;
+    private final Context context;
+
+    public ModelAvailabilityCallback(File sampleFile, byte[] existingBytes, List<String> priorityList, int index, String modelId, String apiKey, TranscriptionCallback callback, Context context) {
+      this.sampleFile = sampleFile;
+      this.existingBytes = existingBytes;
+      this.priorityList = priorityList;
+      this.index = index;
+      this.modelId = modelId;
+      this.apiKey = apiKey;
+      this.callback = callback;
+      this.context = context;
+    }
+
+    @Override
+    public void onSuccess(String result) {
+      if (!isBusy()) {
+        Logger.i(TAG, "Transcription was cancelled during model resolution");
+        getMainHandler().post(() -> callback.onError(context.getString(R.string.transcription_cancelled)));
+        return;
+      }
+      getMainHandler().post(() -> callback.onProgress("MODEL_SELECTED:" + modelId));
+      App.getInstance().getExecutorService().execute(() -> transcribeWithModel(sampleFile, existingBytes, modelId, apiKey, priorityList, index, callback, context));
+    }
+
+    @Override
+    public void onError(String error) {
+      if (isBusy()) {
+        checkNextAndTranscribe(sampleFile, existingBytes, priorityList, index + 1, apiKey, callback, context);
+      } else {
+        getMainHandler().post(() -> callback.onError(context.getString(R.string.transcription_cancelled)));
+      }
+    }
   }
 
   public static final WhisperService INSTANCE = new WhisperService();
@@ -96,27 +165,7 @@ public class WhisperService {
 
   public void transcribeSample(File sampleFile, String language, TranscriptionCallback callback, Context context) {
     incrementActive();
-    TranscriptionCallback wrappedCallback = new TranscriptionCallback() {
-      private boolean completed = false;
-
-      @Override public void onProgress(String message) { callback.onProgress(message); }
-
-      @Override public synchronized void onSuccess(String result) {
-        if (!completed) {
-          completed = true;
-          decrementActive();
-          callback.onSuccess(result);
-        }
-      }
-
-      @Override public synchronized void onError(String error) {
-        if (!completed) {
-          completed = true;
-          decrementActive();
-          callback.onError(error);
-        }
-      }
-    };
+    TranscriptionCallback wrappedCallback = new ActiveTrackingCallback(callback);
 
     if (!sampleFile.exists()) {
       Logger.e(TAG, "transcribeSample: Audio file does not exist: " + sampleFile.getAbsolutePath());
@@ -306,27 +355,7 @@ public class WhisperService {
    */
   public void transcribeWithGemini(File sampleFile, String apiKey, String selectedModel, TranscriptionCallback callback, Context context) {
     incrementActive();
-    TranscriptionCallback wrappedCallback = new TranscriptionCallback() {
-      private boolean completed = false;
-
-      @Override public void onProgress(String message) { callback.onProgress(message); }
-
-      @Override public synchronized void onSuccess(String result) {
-        if (!completed) {
-          completed = true;
-          decrementActive();
-          callback.onSuccess(result);
-        }
-      }
-
-      @Override public synchronized void onError(String error) {
-        if (!completed) {
-          completed = true;
-          decrementActive();
-          callback.onError(error);
-        }
-      }
-    };
+    TranscriptionCallback wrappedCallback = new ActiveTrackingCallback(callback);
 
     wrappedCallback.onProgress(context.getString(R.string.transcribing_with_gemini, sampleFile.getName()));
 
@@ -394,22 +423,7 @@ public class WhisperService {
     }
 
     String modelId = priorityList.get(index);
-    checkModelAvailability(modelId, apiKey, new TranscriptionCallback() {
-      @Override public void onProgress(String message) {}
-      @Override public void onSuccess(String result) {
-        if (!isBusy()) {
-          Logger.i(TAG, "Transcription was cancelled during model resolution");
-          return;
-        }
-        getMainHandler().post(() -> callback.onProgress("MODEL_SELECTED:" + modelId));
-        Executors.newSingleThreadExecutor().execute(() -> transcribeWithModel(sampleFile, existingBytes, modelId, apiKey, priorityList, index, callback, context));
-      }
-      @Override public void onError(String error) {
-        if (isBusy()) {
-          checkNextAndTranscribe(sampleFile, existingBytes, priorityList, index + 1, apiKey, callback, context);
-        }
-      }
-    });
+    checkModelAvailability(modelId, apiKey, new ModelAvailabilityCallback(sampleFile, existingBytes, priorityList, index, modelId, apiKey, callback, context));
   }
 
   private String getMimeType(File file) {
@@ -798,7 +812,6 @@ public class WhisperService {
       Logger.i(TAG, "Stopping active Gemini transcription subscription");
       currentSubscription.cancel();
       currentSubscription = null;
-      decrementActive();
     }
     if (!activeGeminiFutures.isEmpty()) {
       Logger.i(TAG, "Cancelling active Gemini futures (" + activeGeminiFutures.size() + ")");
@@ -808,7 +821,6 @@ public class WhisperService {
         }
       }
       activeGeminiFutures.clear();
-      decrementActive();
     }
   }
 }

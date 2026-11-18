@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import il.co.bensavit.beep.app.App;
 import il.co.bensavit.beep.data.ModelRepository;
 import il.co.bensavit.beep.data.SettingsManager;
+import il.co.bensavit.beep.services.TranscriptionCallback;
 import il.co.bensavit.beep.services.WhisperService;
 import il.co.bensavit.beep.single.LocalWhisper;
 import il.co.bensavit.beep.utils.AssetUtils;
@@ -561,7 +562,7 @@ public class MainViewModel extends AndroidViewModel {
         _geminiModelName.setValue(model);
     }
 
-    public void checkModelAvailability(String modelId, String apiKey, WhisperService.TranscriptionCallback callback) {
+    public void checkModelAvailability(String modelId, String apiKey, TranscriptionCallback callback) {
         whisperService.checkModelAvailability(modelId, apiKey, callback);
     }
 
