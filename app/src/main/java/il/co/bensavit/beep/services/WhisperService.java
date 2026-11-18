@@ -371,10 +371,10 @@ public class WhisperService {
 
   private void resolveAutoAndTranscribe(File sampleFile, List<String> models, String apiKey, TranscriptionCallback callback, Context context) {
     List<String> priorityList = getPrioritizedModels(models);
-    checkNextAndTranscribe(sampleFile, priorityList, 0, apiKey, callback, context);
+    checkNextAndTranscribe(sampleFile, null, priorityList, 0, apiKey, callback, context);
   }
 
-  private void checkNextAndTranscribe(File sampleFile, List<String> priorityList, int index, String apiKey, TranscriptionCallback callback, Context context) {
+  private void checkNextAndTranscribe(File sampleFile, byte[] existingBytes, List<String> priorityList, int index, String apiKey, TranscriptionCallback callback, Context context) {
     if (index >= priorityList.size()) {
       getMainHandler().post(() -> callback.onError(context.getString(R.string.error_no_suitable_model)));
       return;
@@ -389,11 +389,11 @@ public class WhisperService {
           return;
         }
         getMainHandler().post(() -> callback.onProgress("MODEL_SELECTED:" + modelId));
-        new Thread(() -> transcribeWithModel(sampleFile, modelId, apiKey, callback, context)).start();
+        Executors.newSingleThreadExecutor().execute(() -> transcribeWithModel(sampleFile, existingBytes, modelId, apiKey, priorityList, index, callback, context));
       }
       @Override public void onError(String error) {
         if (isBusy()) {
-          checkNextAndTranscribe(sampleFile, priorityList, index + 1, apiKey, callback, context);
+          checkNextAndTranscribe(sampleFile, existingBytes, priorityList, index + 1, apiKey, callback, context);
         }
       }
     });
@@ -414,14 +414,18 @@ public class WhisperService {
   }
 
   private void transcribeWithModel(File sampleFile, String modelId, String apiKey, TranscriptionCallback callback, Context context) {
+    transcribeWithModel(sampleFile, null, modelId, apiKey, null, -1, callback, context);
+  }
+
+  private void transcribeWithModel(File sampleFile, byte[] existingBytes, String modelId, String apiKey, List<String> priorityList, int index, TranscriptionCallback callback, Context context) {
     if (!isBusy()) {
       Logger.i(TAG, "transcribeWithModel cancelled before start");
-      callback.onError(context.getString(R.string.transcription_cancelled));
+      getMainHandler().post(() -> callback.onError(context.getString(R.string.transcription_cancelled)));
       return;
     }
 
     try {
-      byte[] fileBytes = Files.readAllBytes(sampleFile.toPath());
+      byte[] fileBytes = existingBytes != null ? existingBytes : Files.readAllBytes(sampleFile.toPath());
       String modelPath = modelId.contains("/") ? modelId : GEMINI_MODEL_PREFIX + modelId;
       GenerativeModel gm = new GenerativeModel(modelPath, apiKey);
       GenerativeModelFutures model = GenerativeModelFutures.from(gm);
@@ -430,17 +434,17 @@ public class WhisperService {
       getMainHandler().post(() -> callback.onProgress(
           context.getString(R.string.transcribing_with_gemini, sampleFile.getName())));
 
-      executeTranscriptionPhase(chat, sampleFile, fileBytes, modelId, callback, context);
+      executeTranscriptionPhase(chat, sampleFile, fileBytes, modelId, apiKey, priorityList, index, callback, context);
     } catch (OutOfMemoryError e) {
       Logger.e(TAG, "Out of memory reading audio file for Gemini", e);
-      callback.onError("OUT_OF_MEMORY");
+      getMainHandler().post(() -> callback.onError("OUT_OF_MEMORY"));
     } catch (Throwable t) {
       Logger.e(TAG, "Failed to read audio file or initialize Gemini stream", t);
-      callback.onError(context.getString(R.string.error_failed_to_read_audio));
+      getMainHandler().post(() -> callback.onError(context.getString(R.string.error_failed_to_read_audio)));
     }
   }
 
-  private void executeTranscriptionPhase(ChatFutures chat, File sampleFile, byte[] fileBytes, String modelId, TranscriptionCallback callback, Context context) {
+  private void executeTranscriptionPhase(ChatFutures chat, File sampleFile, byte[] fileBytes, String modelId, String apiKey, List<String> priorityList, int index, TranscriptionCallback callback, Context context) {
     Content content1 = new Content.Builder()
         .addText(readAssetTextFile(context, "gemini_prompt.txt"))
         .addBlob(getMimeType(sampleFile), fileBytes)
@@ -457,7 +461,7 @@ public class WhisperService {
         try {
           transcriptionText = response1.getText() != null ? response1.getText() : "";
         } catch (Throwable t) {
-          handleGeminiFailure(future1, modelId, t, "transcription", callback, context);
+          handleGeminiFailure(future1, modelId, t, "transcription", priorityList, index, sampleFile, fileBytes, apiKey, callback, context);
           return;
         }
 
@@ -472,7 +476,7 @@ public class WhisperService {
 
       @Override
       public void onFailure(Throwable t) {
-        handleGeminiFailure(future1, modelId, t, "transcription", callback, context);
+        handleGeminiFailure(future1, modelId, t, "transcription", priorityList, index, sampleFile, fileBytes, apiKey, callback, context);
       }
     }, r -> getMainHandler().post(r));
   }
@@ -534,11 +538,69 @@ public class WhisperService {
     }
   }
 
-  private void handleGeminiFailure(ListenableFuture<?> future, String modelId, Throwable t, String phase, TranscriptionCallback callback, Context context) {
+  private boolean isQuotaOrRateLimitError(Throwable t) {
+    Throwable current = t;
+    while (current != null) {
+      if (checkSingleThrowableForQuotaOrRateLimit(current)) {
+        return true;
+      }
+      current = current.getCause();
+    }
+    return false;
+  }
+
+  private boolean checkSingleThrowableForQuotaOrRateLimit(Throwable t) {
+    if (t == null) return false;
+    String message = t.getMessage();
+    if (message == null) return false;
+    String lowerMsg = message.toLowerCase();
+    if (lowerMsg.contains("429")
+        || lowerMsg.contains("503")
+        || lowerMsg.contains("quota")
+        || lowerMsg.contains("resource_exhausted")
+        || lowerMsg.contains("unavailable")
+        || lowerMsg.contains("overloaded")
+        || lowerMsg.contains("exceeded your current quota")
+        || lowerMsg.contains("too many requests")
+        || lowerMsg.contains("rate limit")) {
+      return true;
+    }
+    try {
+      int jsonStart = message.indexOf("{");
+      if (jsonStart != -1) {
+        JSONObject json = new JSONObject(message.substring(jsonStart));
+        if (json.has("error")) {
+          JSONObject errorObj = json.getJSONObject("error");
+          int code = errorObj.optInt("code");
+          String status = errorObj.optString("status", "");
+          if (code == 429 || code == 503 || "RESOURCE_EXHAUSTED".equalsIgnoreCase(status) || "UNAVAILABLE".equalsIgnoreCase(status)) {
+            return true;
+          }
+        }
+      }
+    } catch (Exception ignored) {}
+    return false;
+  }
+
+  private void handleGeminiFailure(ListenableFuture<?> future, String modelId, Throwable t, String phase,
+                                   List<String> priorityList, int index, File sampleFile, byte[] fileBytes, String apiKey,
+                                   TranscriptionCallback callback, Context context) {
     activeGeminiFutures.remove(future);
     Logger.e(TAG, "Gemini " + phase + " failed for model " + modelId, t);
+
+    if (t instanceof CancellationException || (t != null && t.getCause() instanceof CancellationException)) {
+      Logger.i(TAG, "Gemini " + phase + " was cancelled for model " + modelId);
+      return;
+    }
+
+    if (isBusy() && priorityList != null && index >= 0 && (index + 1) < priorityList.size() && isQuotaOrRateLimitError(t)) {
+      Logger.w(TAG, "Gemini model " + modelId + " failed due to quota/rate-limit/503 error. Trying next model in priority list...");
+      checkNextAndTranscribe(sampleFile, fileBytes, priorityList, index + 1, apiKey, callback, context);
+      return;
+    }
+
     getMainHandler().post(() -> {
-      String message = t.getMessage();
+      String message = t != null ? t.getMessage() : "";
       String handledError = getGeminiErrorMessage(message, modelId, context);
       if (handledError != null) {
         callback.onError(handledError);
