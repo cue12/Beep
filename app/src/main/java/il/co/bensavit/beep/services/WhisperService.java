@@ -40,7 +40,6 @@ import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import org.reactivestreams.Subscription;
@@ -227,58 +226,72 @@ public class WhisperService {
   }
 
   public void testApiKey(String apiKey, Consumer<String> onSuccess, Consumer<String> onError) {
+    testApiKey(App.getInstance(), apiKey, onSuccess, onError);
+  }
+
+  public void testApiKey(Context context, String apiKey, Consumer<String> onSuccess, Consumer<String> onError) {
+    final Context ctx = context != null ? context.getApplicationContext() : App.getInstance();
     if (apiKey == null || apiKey.trim().isEmpty()) {
       if (onError != null) {
-        getMainHandler().post(() -> onError.accept("API key is empty"));
+        String errorMsg = ctx != null ? ctx.getString(R.string.error_gemini_key_not_found) : "API key is empty";
+        getMainHandler().post(() -> onError.accept(errorMsg));
       }
       return;
     }
     String cleanKey = apiKey.trim();
-    ExecutorService executor = Executors.newSingleThreadExecutor();
-    executor.execute(() -> {
-      try {
-        GenerativeModel gm = new GenerativeModel("models/gemini-1.5-flash", cleanKey);
-        GenerativeModelFutures model = GenerativeModelFutures.from(gm);
-        Content content = new Content.Builder().addText(".").build();
-        ListenableFuture<GenerateContentResponse> response = model.generateContent(content);
 
-        Futures.addCallback(response, new FutureCallback<GenerateContentResponse>() {
-          @Override
-          public void onSuccess(GenerateContentResponse result) {
-            getMainHandler().post(() -> {
-              if (onSuccess != null) {
-                onSuccess.accept("API Key is valid!");
-              }
-            });
-          }
-
-          @Override
-          public void onFailure(Throwable t) {
-            String rawMsg = t != null && t.getMessage() != null ? t.getMessage() : "Validation failed";
-            String formattedError = getGeminiErrorMessage(rawMsg, "gemini-1.5-flash", null);
-            final String finalMsg = formattedError != null ? formattedError : rawMsg;
-            Logger.w(TAG, "API Key test failed: " + finalMsg);
-            getMainHandler().post(() -> {
-              if (onError != null) {
-                onError.accept(finalMsg);
-              }
-            });
-          }
-        }, r -> getMainHandler().post(r));
-      } catch (Exception e) {
-        String rawMsg = e.getMessage() != null ? e.getMessage() : "Validation error";
-        String formattedError = getGeminiErrorMessage(rawMsg, "gemini-1.5-flash", null);
-        final String errorMsg = formattedError != null ? formattedError : rawMsg;
-        Logger.e(TAG, "Error testing API key", e);
-        getMainHandler().post(() -> {
-          if (onError != null) {
-            onError.accept(errorMsg);
-          }
-        });
-      } finally {
-        executor.shutdown();
+    String testModel = "gemini-1.5-flash";
+    if (ctx != null) {
+      String storedModel = new SettingsManager(ctx).getGeminiModelName();
+      if (storedModel != null && !storedModel.isEmpty() && !"auto".equalsIgnoreCase(storedModel)) {
+        testModel = storedModel.startsWith(GEMINI_MODEL_PREFIX) ? storedModel.replace(GEMINI_MODEL_PREFIX, "") : storedModel;
+      } else if (!cachedGeminiModels.isEmpty()) {
+        testModel = cachedGeminiModels.get(0);
       }
-    });
+    }
+    final String modelName = testModel;
+
+    try {
+      String modelPath = modelName.contains("/") ? modelName : GEMINI_MODEL_PREFIX + modelName;
+      GenerativeModel gm = new GenerativeModel(modelPath, cleanKey);
+      GenerativeModelFutures model = GenerativeModelFutures.from(gm);
+      Content content = new Content.Builder().addText(".").build();
+      ListenableFuture<GenerateContentResponse> response = model.generateContent(content);
+
+      Futures.addCallback(response, new FutureCallback<GenerateContentResponse>() {
+        @Override
+        public void onSuccess(GenerateContentResponse result) {
+          getMainHandler().post(() -> {
+            if (onSuccess != null) {
+              onSuccess.accept("API Key is valid!");
+            }
+          });
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+          String rawMsg = t != null && t.getMessage() != null ? t.getMessage() : "Validation failed";
+          String formattedError = getGeminiErrorMessage(rawMsg, modelName, ctx);
+          final String finalMsg = formattedError != null ? formattedError : rawMsg;
+          Logger.w(TAG, "API Key test failed: " + finalMsg);
+          getMainHandler().post(() -> {
+            if (onError != null) {
+              onError.accept(finalMsg);
+            }
+          });
+        }
+      }, r -> getMainHandler().post(r));
+    } catch (Exception e) {
+      String rawMsg = e.getMessage() != null ? e.getMessage() : "Validation error";
+      String formattedError = getGeminiErrorMessage(rawMsg, modelName, ctx);
+      final String errorMsg = formattedError != null ? formattedError : rawMsg;
+      Logger.e(TAG, "Error testing API key", e);
+      getMainHandler().post(() -> {
+        if (onError != null) {
+          onError.accept(errorMsg);
+        }
+      });
+    }
   }
 
   /**
@@ -718,7 +731,7 @@ public class WhisperService {
   }
 
   private String getGeminiErrorMessage(String rawMessage, String modelName, Context context) {
-    if (rawMessage == null) return null;
+    if (rawMessage == null || context == null) return null;
     try {
       // Check if the message contains a JSON error object
       int jsonStart = rawMessage.indexOf("{");

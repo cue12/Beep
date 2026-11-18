@@ -566,7 +566,7 @@ public class MainViewModel extends AndroidViewModel {
     }
 
     public void testGeminiApiKey(String apiKey, java.util.function.Consumer<String> onSuccess, java.util.function.Consumer<String> onError) {
-        whisperService.testApiKey(apiKey, onSuccess, onError);
+        whisperService.testApiKey(getApplication(), apiKey, onSuccess, onError);
     }
 
     public void loadLocalModel(String modelName, Runnable onComplete) {

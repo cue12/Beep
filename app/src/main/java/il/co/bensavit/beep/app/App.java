@@ -20,6 +20,12 @@ import il.co.bensavit.beep.workers.CleanupWorker;
 
 public class App extends Application {
 
+  private static App instance;
+
+  public static App getInstance() {
+    return instance;
+  }
+
   private SettingsManager settingsManager;
   private ModelRepository modelRepository;
   private ExecutorService executorService;
@@ -27,6 +33,7 @@ public class App extends Application {
   @Override
   public void onCreate() {
     super.onCreate();
+    instance = this;
     DynamicColors.applyToActivitiesIfAvailable(this);
     StorageUtils.ensureDirectoriesExist(this);
 
