@@ -289,58 +289,20 @@ public class WhisperService {
     }
     String cleanKey = apiKey.trim();
 
-    String testModel = "gemini-1.5-flash";
-    if (ctx != null) {
-      String storedModel = new SettingsManager(ctx).getGeminiModelName();
-      if (storedModel != null && !storedModel.isEmpty() && !"auto".equalsIgnoreCase(storedModel)) {
-        testModel = storedModel.startsWith(GEMINI_MODEL_PREFIX) ? storedModel.replace(GEMINI_MODEL_PREFIX, "") : storedModel;
-      } else if (!cachedGeminiModels.isEmpty()) {
-        testModel = cachedGeminiModels.get(0);
-      }
-    }
-    final String modelName = testModel;
-
-    try {
-      String modelPath = modelName.contains("/") ? modelName : GEMINI_MODEL_PREFIX + modelName;
-      GenerativeModel gm = new GenerativeModel(modelPath, cleanKey);
-      GenerativeModelFutures model = GenerativeModelFutures.from(gm);
-      Content content = new Content.Builder().addText(".").build();
-      ListenableFuture<GenerateContentResponse> response = model.generateContent(content);
-
-      Futures.addCallback(response, new FutureCallback<GenerateContentResponse>() {
-        @Override
-        public void onSuccess(GenerateContentResponse result) {
-          getMainHandler().post(() -> {
-            if (onSuccess != null) {
-              onSuccess.accept("API Key is valid!");
-            }
-          });
-        }
-
-        @Override
-        public void onFailure(Throwable t) {
-          String rawMsg = t != null && t.getMessage() != null ? t.getMessage() : "Validation failed";
-          String formattedError = getGeminiErrorMessage(rawMsg, modelName, ctx);
-          final String finalMsg = formattedError != null ? formattedError : rawMsg;
-          Logger.w(TAG, "API Key test failed: " + finalMsg);
-          getMainHandler().post(() -> {
-            if (onError != null) {
-              onError.accept(finalMsg);
-            }
-          });
-        }
-      }, r -> getMainHandler().post(r));
-    } catch (Exception e) {
-      String rawMsg = e.getMessage() != null ? e.getMessage() : "Validation error";
-      String formattedError = getGeminiErrorMessage(rawMsg, modelName, ctx);
-      final String errorMsg = formattedError != null ? formattedError : rawMsg;
-      Logger.e(TAG, "Error testing API key", e);
-      getMainHandler().post(() -> {
+    fetchGeminiModels(cleanKey, models -> {
+      if (models == null || models.isEmpty()) {
         if (onError != null) {
+          String errorMsg = ctx != null ? ctx.getString(R.string.error_fetching_models, "No models found") : "No models found";
           onError.accept(errorMsg);
         }
-      });
-    }
+      } else if (onSuccess != null) {
+        onSuccess.accept("API Key is valid!");
+      }
+    }, error -> {
+      if (onError != null) {
+        onError.accept(error);
+      }
+    });
   }
 
   /**
@@ -639,13 +601,17 @@ public class WhisperService {
 
   public void fetchGeminiModels(String apiKey, Consumer<List<String>> onSuccess, Consumer<String> onError) {
     if (apiKey == null || apiKey.trim().isEmpty()) {
-      onError.accept("API Key is missing");
+      getMainHandler().post(() -> {
+        if (onError != null) {
+          onError.accept("API Key is missing");
+        }
+      });
       return;
     }
 
     final String cleanKey = apiKey.trim();
 
-    new Thread(() -> {
+    App.getInstance().getExecutorService().execute(() -> {
       HttpURLConnection conn = null;
       try {
         URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models");
@@ -741,7 +707,7 @@ public class WhisperService {
           conn.disconnect();
         }
       }
-    }).start();
+    });
   }
 
   private String getGeminiErrorMessage(String rawMessage, String modelName, Context context) {
