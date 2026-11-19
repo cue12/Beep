@@ -19,6 +19,7 @@ import androidx.work.WorkManager;
 import java.io.File;
 import java.util.UUID;
 
+import il.co.bensavit.beep.data.TaskStatus;
 import il.co.bensavit.beep.services.TranscriptionWorker;
 import il.co.bensavit.beep.services.WhisperService;
 import il.co.bensavit.beep.utils.Logger;
@@ -69,7 +70,7 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
     private boolean mIsTaskRunning = false;
 
     private String mTaskKey;
-    private MainViewModel mMainViewModel;
+    private TaskStateListener mTaskStateListener;
     private long mStartTime = 0;
 
     public TranscriptionTaskViewModel(@NonNull Application application) {
@@ -77,9 +78,9 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
         this.mainHandler = HandlerCompat.createAsync(Looper.getMainLooper());
     }
 
-    public void initTask(String taskKey, MainViewModel mainViewModel) {
+    public void initTask(String taskKey, TaskStateListener taskStateListener) {
         this.mTaskKey = taskKey;
-        this.mMainViewModel = mainViewModel;
+        this.mTaskStateListener = taskStateListener;
     }
 
     public void setRestoredResult(String text, boolean isProgressVisible) {
@@ -106,8 +107,8 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
         workManager.enqueue(workRequest);
         mCurrentWorkId = workRequest.getId();
 
-        if (mMainViewModel != null && mTaskKey != null) {
-            mMainViewModel.updateTaskWorkId(mTaskKey, mCurrentWorkId.toString());
+        if (mTaskStateListener != null && mTaskKey != null) {
+            mTaskStateListener.updateTaskWorkId(mTaskKey, mCurrentWorkId.toString());
         }
 
         mIsTaskRunning = true;
@@ -176,8 +177,8 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
                     Data progress = workInfo.getProgress();
                     String progressMsg = progress.getString(TranscriptionWorker.KEY_PROGRESS);
                     String progressModel = progress.getString(TranscriptionWorker.KEY_MODEL_NAME);
-                    if (progressModel != null && !progressModel.isEmpty() && mMainViewModel != null && mTaskKey != null) {
-                        mMainViewModel.updateTaskModelName(mTaskKey, progressModel);
+                    if (progressModel != null && !progressModel.isEmpty() && mTaskStateListener != null && mTaskKey != null) {
+                        mTaskStateListener.updateTaskModelName(mTaskKey, progressModel);
                     }
                     if (progressMsg != null) {
                         _transcriptionText.postValue(progressMsg);
@@ -193,13 +194,13 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
                         if (workInfo.getState() == WorkInfo.State.SUCCEEDED) {
                             String result = workInfo.getOutputData().getString(TranscriptionWorker.KEY_RESULT);
                             String actualModel = workInfo.getOutputData().getString(TranscriptionWorker.KEY_MODEL_NAME);
-                            if (actualModel != null && !actualModel.isEmpty() && mMainViewModel != null && mTaskKey != null) {
-                                mMainViewModel.updateTaskModelName(mTaskKey, actualModel);
+                            if (actualModel != null && !actualModel.isEmpty() && mTaskStateListener != null && mTaskKey != null) {
+                                mTaskStateListener.updateTaskModelName(mTaskKey, actualModel);
                             }
                             if (result != null) {
                                 _transcriptionText.postValue(result);
-                                if (mMainViewModel != null && mTaskKey != null) {
-                                    mMainViewModel.updateTaskResult(mTaskKey, MainViewModel.TaskEntry.Status.SUCCEEDED, result, elapsedMs);
+                                if (mTaskStateListener != null && mTaskKey != null) {
+                                    mTaskStateListener.updateTaskResult(mTaskKey, TaskStatus.SUCCEEDED, result, elapsedMs);
                                 }
                             }
                         } else if (workInfo.getState() == WorkInfo.State.FAILED) {
@@ -214,14 +215,14 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
                                 errorText = getApplication().getString(R.string.error_transcription_failed) + ": " + error;
                             }
                             _transcriptionText.postValue(errorText);
-                            if (mMainViewModel != null && mTaskKey != null) {
-                                mMainViewModel.updateTaskResult(mTaskKey, MainViewModel.TaskEntry.Status.FAILED, errorText, elapsedMs);
+                            if (mTaskStateListener != null && mTaskKey != null) {
+                                mTaskStateListener.updateTaskResult(mTaskKey, TaskStatus.FAILED, errorText, elapsedMs);
                             }
                         } else if (workInfo.getState() == WorkInfo.State.CANCELLED) {
                             String cancelText = getApplication().getString(R.string.transcription_cancelled);
                             _transcriptionText.postValue(cancelText);
-                            if (mMainViewModel != null && mTaskKey != null) {
-                                mMainViewModel.updateTaskResult(mTaskKey, MainViewModel.TaskEntry.Status.CANCELLED, cancelText, elapsedMs);
+                            if (mTaskStateListener != null && mTaskKey != null && mIsTaskRunning) {
+                                mTaskStateListener.updateTaskResult(mTaskKey, TaskStatus.CANCELLED, cancelText, elapsedMs);
                             }
                         }
 
@@ -256,11 +257,11 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
 
             whisperService.stopCurrentTranscription();
 
-            if (mMainViewModel != null && mTaskKey != null) {
+            if (mTaskStateListener != null && mTaskKey != null) {
                 long elapsedMs = mStartTime > 0 ? System.currentTimeMillis() - mStartTime : 0;
                 String cancelText = getApplication().getString(R.string.transcription_cancelled);
                 _transcriptionText.postValue(cancelText);
-                mMainViewModel.updateTaskResult(mTaskKey, MainViewModel.TaskEntry.Status.CANCELLED, cancelText, elapsedMs);
+                mTaskStateListener.updateTaskResult(mTaskKey, TaskStatus.CANCELLED, cancelText, elapsedMs);
             }
 
             cleanupObserver();
@@ -278,12 +279,18 @@ public class TranscriptionTaskViewModel extends AndroidViewModel {
         _transcriptionText.setValue("");
     }
 
-    @Override
-    protected void onCleared() {
-        super.onCleared();
+    public void dispose() {
         stopTranscription();
+        mTaskStateListener = null;
+        mTaskKey = null;
         if (mainHandler != null) {
             mainHandler.removeCallbacksAndMessages(null);
         }
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        dispose();
     }
 }

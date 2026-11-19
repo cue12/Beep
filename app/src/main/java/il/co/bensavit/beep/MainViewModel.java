@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import il.co.bensavit.beep.app.App;
 import il.co.bensavit.beep.data.ModelRepository;
 import il.co.bensavit.beep.data.SettingsManager;
+import il.co.bensavit.beep.data.TaskStatus;
 import il.co.bensavit.beep.services.TranscriptionCallback;
 import il.co.bensavit.beep.services.WhisperService;
 import il.co.bensavit.beep.single.LocalWhisper;
@@ -54,7 +55,7 @@ import il.co.bensavit.beep.utils.StorageUtils;
  * and exposes read-only {@link LiveData} streams to the UI layer ({@link MainActivity}).
  */
 @Keep
-public class MainViewModel extends AndroidViewModel {
+public class MainViewModel extends AndroidViewModel implements TaskStateListener {
 
     private static final String TAG = "MainViewModel";
 
@@ -175,11 +176,12 @@ public class MainViewModel extends AndroidViewModel {
     }
 
     public static class TaskEntry {
+        @Deprecated
         public enum Status { RUNNING, SUCCEEDED, FAILED, CANCELLED }
 
         public File file;
         public final String taskKey;
-        public Status status;
+        public TaskStatus status;
         public String resultText;
         public String workId;
         public long elapsedTimeMs;
@@ -189,25 +191,25 @@ public class MainViewModel extends AndroidViewModel {
         public long timestamp;
 
         public TaskEntry(File file, String taskKey) {
-            this(file, taskKey, Status.RUNNING, null, null, 0, true, true, null, System.currentTimeMillis());
+            this(file, taskKey, TaskStatus.RUNNING, null, null, 0, true, true, null, System.currentTimeMillis());
         }
 
-        public TaskEntry(File file, String taskKey, Status status, String resultText, String workId, long elapsedTimeMs) {
+        public TaskEntry(File file, String taskKey, TaskStatus status, String resultText, String workId, long elapsedTimeMs) {
             this(file, taskKey, status, resultText, workId, elapsedTimeMs, true, true, null, System.currentTimeMillis());
         }
 
-        public TaskEntry(File file, String taskKey, Status status, String resultText, String workId, long elapsedTimeMs, boolean isSummaryExpanded, boolean isTranscriptionExpanded) {
+        public TaskEntry(File file, String taskKey, TaskStatus status, String resultText, String workId, long elapsedTimeMs, boolean isSummaryExpanded, boolean isTranscriptionExpanded) {
             this(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded, null, System.currentTimeMillis());
         }
 
-        public TaskEntry(File file, String taskKey, Status status, String resultText, String workId, long elapsedTimeMs, boolean isSummaryExpanded, boolean isTranscriptionExpanded, String modelName) {
+        public TaskEntry(File file, String taskKey, TaskStatus status, String resultText, String workId, long elapsedTimeMs, boolean isSummaryExpanded, boolean isTranscriptionExpanded, String modelName) {
             this(file, taskKey, status, resultText, workId, elapsedTimeMs, isSummaryExpanded, isTranscriptionExpanded, modelName, System.currentTimeMillis());
         }
 
-        public TaskEntry(File file, String taskKey, Status status, String resultText, String workId, long elapsedTimeMs, boolean isSummaryExpanded, boolean isTranscriptionExpanded, String modelName, long timestamp) {
+        public TaskEntry(File file, String taskKey, TaskStatus status, String resultText, String workId, long elapsedTimeMs, boolean isSummaryExpanded, boolean isTranscriptionExpanded, String modelName, long timestamp) {
             this.file = file;
             this.taskKey = taskKey;
-            this.status = status != null ? status : Status.RUNNING;
+            this.status = status != null ? status : TaskStatus.RUNNING;
             this.resultText = resultText;
             this.workId = workId;
             this.elapsedTimeMs = elapsedTimeMs;
@@ -215,6 +217,10 @@ public class MainViewModel extends AndroidViewModel {
             this.isTranscriptionExpanded = isTranscriptionExpanded;
             this.modelName = modelName;
             this.timestamp = timestamp > 0 ? timestamp : System.currentTimeMillis();
+        }
+
+        public TaskEntry(TaskEntry other) {
+            this(other.file, other.taskKey, other.status, other.resultText, other.workId, other.elapsedTimeMs, other.isSummaryExpanded, other.isTranscriptionExpanded, other.modelName, other.timestamp);
         }
     }
 
@@ -274,9 +280,9 @@ public class MainViewModel extends AndroidViewModel {
                     JSONObject obj = array.getJSONObject(i);
                     String filePath = obj.getString("filePath");
                     String taskKey = obj.getString("taskKey");
-                    TaskEntry.Status status = TaskEntry.Status.RUNNING;
+                    TaskStatus status = TaskStatus.RUNNING;
                     try {
-                        status = TaskEntry.Status.valueOf(obj.optString("status", "RUNNING"));
+                        status = TaskStatus.valueOf(obj.optString("status", "RUNNING"));
                     } catch (IllegalArgumentException e) {
                         Logger.w(TAG, "Unknown task status in JSON: " + obj.optString("status"));
                     }
@@ -346,14 +352,38 @@ public class MainViewModel extends AndroidViewModel {
         });
     }
 
+    private final java.util.Map<String, TranscriptionTaskViewModel> activeTaskViewModels = new java.util.HashMap<>();
+
+    public synchronized TranscriptionTaskViewModel getOrCreateTaskViewModel(String taskKey) {
+        TranscriptionTaskViewModel vm = activeTaskViewModels.get(taskKey);
+        if (vm == null) {
+            vm = new androidx.lifecycle.ViewModelProvider(taskViewModelStore,
+                    new androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory(getApplication()))
+                    .get(taskKey, TranscriptionTaskViewModel.class);
+            activeTaskViewModels.put(taskKey, vm);
+        }
+        return vm;
+    }
+
+    public synchronized void removeTaskViewModel(String taskKey) {
+        TranscriptionTaskViewModel vm = activeTaskViewModels.remove(taskKey);
+        if (vm != null) {
+            vm.dispose();
+        }
+    }
+
     public synchronized List<TaskEntry> getActiveTaskEntries() {
-        return new ArrayList<>(activeTaskEntries);
+        List<TaskEntry> copies = new ArrayList<>(activeTaskEntries.size());
+        for (TaskEntry entry : activeTaskEntries) {
+            copies.add(new TaskEntry(entry));
+        }
+        return copies;
     }
 
     public synchronized TaskEntry getTaskEntry(String taskKey) {
         for (TaskEntry entry : activeTaskEntries) {
             if (entry.taskKey.equals(taskKey)) {
-                return entry;
+                return new TaskEntry(entry);
             }
         }
         return null;
@@ -372,6 +402,7 @@ public class MainViewModel extends AndroidViewModel {
             }
         }
         saveTaskEntriesToDisk();
+        removeTaskViewModel(taskKey);
     }
 
     public synchronized void updateTaskEntryFile(String taskKey, File newFile) {
@@ -389,37 +420,51 @@ public class MainViewModel extends AndroidViewModel {
         for (int i = 0; i < activeTaskEntries.size(); i++) {
             TaskEntry entry = activeTaskEntries.get(i);
             if (entry.taskKey.equals(taskKey)) {
-                entry.workId = workId;
+                if (!Objects.equals(entry.workId, workId)) {
+                    entry.workId = workId;
+                    saveTaskEntriesToDisk();
+                }
                 break;
             }
         }
-        saveTaskEntriesToDisk();
     }
 
     public synchronized void updateTaskModelName(String taskKey, String modelName) {
         for (int i = 0; i < activeTaskEntries.size(); i++) {
             TaskEntry entry = activeTaskEntries.get(i);
             if (entry.taskKey.equals(taskKey)) {
-                entry.modelName = modelName;
-                break;
-            }
-        }
-        saveTaskEntriesToDisk();
-    }
-
-    public synchronized void updateTaskResult(String taskKey, TaskEntry.Status status, String resultText, long elapsedTimeMs) {
-        for (int i = 0; i < activeTaskEntries.size(); i++) {
-            TaskEntry entry = activeTaskEntries.get(i);
-            if (entry.taskKey.equals(taskKey)) {
-                entry.status = status;
-                entry.resultText = resultText;
-                if (elapsedTimeMs > 0) {
-                    entry.elapsedTimeMs = elapsedTimeMs;
+                if (!Objects.equals(entry.modelName, modelName)) {
+                    entry.modelName = modelName;
+                    saveTaskEntriesToDisk();
                 }
                 break;
             }
         }
-        saveTaskEntriesToDisk();
+    }
+
+    public synchronized void updateTaskResult(String taskKey, TaskStatus status, String resultText, long elapsedTimeMs) {
+        for (int i = 0; i < activeTaskEntries.size(); i++) {
+            TaskEntry entry = activeTaskEntries.get(i);
+            if (entry.taskKey.equals(taskKey)) {
+                boolean changed = false;
+                if (entry.status != status) {
+                    entry.status = status;
+                    changed = true;
+                }
+                if (!Objects.equals(entry.resultText, resultText)) {
+                    entry.resultText = resultText;
+                    changed = true;
+                }
+                if (elapsedTimeMs > 0 && entry.elapsedTimeMs != elapsedTimeMs) {
+                    entry.elapsedTimeMs = elapsedTimeMs;
+                    changed = true;
+                }
+                if (changed) {
+                    saveTaskEntriesToDisk();
+                }
+                break;
+            }
+        }
     }
 
     public synchronized void updateTaskExpandState(String taskKey, boolean isSummaryExpanded, boolean isTranscriptionExpanded) {
@@ -437,6 +482,12 @@ public class MainViewModel extends AndroidViewModel {
     public synchronized void clearTaskEntries() {
         activeTaskEntries.clear();
         saveTaskEntriesToDisk();
+        for (TranscriptionTaskViewModel vm : new ArrayList<>(activeTaskViewModels.values())) {
+            if (vm != null) {
+                vm.dispose();
+            }
+        }
+        activeTaskViewModels.clear();
     }
 
     private final File mSharedDir;

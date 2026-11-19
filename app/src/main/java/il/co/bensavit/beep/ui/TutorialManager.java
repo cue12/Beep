@@ -2,6 +2,16 @@ package il.co.bensavit.beep.ui;
 
 import android.app.Activity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
+
+import androidx.annotation.NonNull;
+import androidx.fragment.app.DialogFragment;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
+import androidx.fragment.app.FragmentManager;
+
+import java.util.List;
 
 import il.co.bensavit.beep.MainViewModel;
 import il.co.bensavit.beep.R;
@@ -16,7 +26,7 @@ public class TutorialManager {
         void onTutorialSkipped();
     }
 
-    public static void showTutorialPrompt(
+    public static MaterialTapTargetSequence showTutorialPrompt(
             Activity activity,
             ActivityMainBinding binding,
             MainViewModel viewModel,
@@ -24,17 +34,22 @@ public class TutorialManager {
             TutorialListener listener
     ) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed() || binding == null) {
-            return;
+            return null;
         }
 
         if (viewModel.isTutorialShown()) {
-            return;
+            return null;
         }
 
         if (binding.outputCard.getWidth() <= 0) {
             binding.toolbar.removeCallbacks(showTutorialRunnable);
             binding.toolbar.postDelayed(showTutorialRunnable, 200);
-            return;
+            return null;
+        }
+
+        if (isAnyDialogShowing(activity)) {
+            registerDialogDismissCallback(activity, binding, showTutorialRunnable);
+            return null;
         }
 
         MaterialTapTargetSequence sequence = new MaterialTapTargetSequence();
@@ -72,7 +87,7 @@ public class TutorialManager {
                 activity.getString(R.string.tutorial_history_title), activity.getString(R.string.tutorial_history_desc), onSkipped));
 
         // 6. Copying & Managing Tasks
-        View firstChild = binding.transcriptionContainer.getChildCount() > 0 ? binding.transcriptionContainer.getChildAt(0) : null;
+        View firstChild = binding.recyclerViewTasks.getChildCount() > 0 ? binding.recyclerViewTasks.getChildAt(0) : null;
         View taskTarget = (firstChild != null && firstChild.getWidth() > 0 && firstChild.getHeight() > 0 && firstChild.isAttachedToWindow())
                 ? firstChild
                 : binding.outputCard;
@@ -105,6 +120,99 @@ public class TutorialManager {
         });
 
         sequence.show();
+        return sequence;
+    }
+
+    public static boolean isAnyDialogShowing(Activity activity) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            return false;
+        }
+
+        if (activity instanceof FragmentActivity) {
+            FragmentManager fm = ((FragmentActivity) activity).getSupportFragmentManager();
+            if (isAnyDialogShowingInManager(fm)) {
+                return true;
+            }
+        }
+
+        return !activity.hasWindowFocus();
+    }
+
+    private static boolean isAnyDialogShowingInManager(FragmentManager fm) {
+        if (fm == null) return false;
+        List<Fragment> fragments = fm.getFragments();
+        for (Fragment fragment : fragments) {
+            if (fragment == null) {
+                continue;
+            }
+            if (fragment instanceof DialogFragment && fragment.isAdded()) {
+                DialogFragment df = (DialogFragment) fragment;
+                if (df.getDialog() != null && df.getDialog().isShowing()) {
+                    return true;
+                }
+            }
+            if (fragment.isAdded() && isAnyDialogShowingInManager(fragment.getChildFragmentManager())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void registerDialogDismissCallback(
+            Activity activity,
+            ActivityMainBinding binding,
+            Runnable showTutorialRunnable
+    ) {
+        if (activity == null || binding == null || showTutorialRunnable == null) {
+            return;
+        }
+
+        binding.toolbar.removeCallbacks(showTutorialRunnable);
+
+        if (activity instanceof FragmentActivity) {
+            FragmentManager fm = ((FragmentActivity) activity).getSupportFragmentManager();
+            fm.registerFragmentLifecycleCallbacks(new FragmentManager.FragmentLifecycleCallbacks() {
+                @Override
+                public void onFragmentDestroyed(@NonNull FragmentManager fm, @NonNull Fragment f) {
+                    if (f instanceof DialogFragment) {
+                        fm.unregisterFragmentLifecycleCallbacks(this);
+                        binding.toolbar.removeCallbacks(showTutorialRunnable);
+                        binding.toolbar.post(showTutorialRunnable);
+                    }
+                }
+            }, true);
+        }
+
+        ViewTreeObserver vto = binding.toolbar.getViewTreeObserver();
+        if (vto.isAlive()) {
+            vto.addOnWindowFocusChangeListener(new ViewTreeObserver.OnWindowFocusChangeListener() {
+                @Override
+                public void onWindowFocusChanged(boolean hasFocus) {
+                    if (hasFocus) {
+                        if (binding.toolbar.getViewTreeObserver().isAlive()) {
+                            binding.toolbar.getViewTreeObserver().removeOnWindowFocusChangeListener(this);
+                        }
+                        binding.toolbar.removeCallbacks(showTutorialRunnable);
+                        binding.toolbar.post(showTutorialRunnable);
+                    }
+                }
+            });
+        }
+    }
+
+    private static View findActivePromptView(Activity activity) {
+        if (activity == null) return null;
+        View decorView = activity.getWindow().getDecorView();
+        if (decorView instanceof ViewGroup) {
+            ViewGroup root = (ViewGroup) decorView;
+            for (int i = root.getChildCount() - 1; i >= 0; i--) {
+                View child = root.getChildAt(i);
+                if (child.getId() == uk.co.samuelwall.materialtaptargetprompt.R.id.material_target_prompt_view) {
+                    return child;
+                }
+            }
+        }
+        return activity.findViewById(uk.co.samuelwall.materialtaptargetprompt.R.id.material_target_prompt_view);
     }
 
     private static MaterialTapTargetPrompt.Builder createTutorialPrompt(
@@ -119,6 +227,13 @@ public class TutorialManager {
                 .setPrimaryText(title)
                 .setSecondaryText(desc)
                 .setPromptStateChangeListener((prompt, state) -> {
+                    if (state == MaterialTapTargetPrompt.STATE_REVEALING || state == MaterialTapTargetPrompt.STATE_REVEALED) {
+                        View promptView = findActivePromptView(activity);
+                        if (promptView != null) {
+                            promptView.setElevation(9999f);
+                            promptView.bringToFront();
+                        }
+                    }
                     if (state == MaterialTapTargetPrompt.STATE_NON_FOCAL_PRESSED || state == MaterialTapTargetPrompt.STATE_BACK_BUTTON_PRESSED) {
                         if (onSkipped != null) {
                             onSkipped.run();

@@ -1,24 +1,16 @@
 package il.co.bensavit.beep;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.provider.MediaStore;
-import android.text.method.LinkMovementMethod;
 import android.view.GestureDetector;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.ImageView;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.appcompat.widget.TooltipCompat;
-
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.IntentSenderRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -26,16 +18,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.IntentCompat;
 import androidx.core.text.HtmlCompat;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.transition.TransitionManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 
-import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.snackbar.Snackbar;
+import uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetSequence;
 
-import android.animation.LayoutTransition;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -44,8 +33,10 @@ import java.util.Objects;
 import il.co.bensavit.beep.databinding.ActivityMainBinding;
 import il.co.bensavit.beep.ui.HistoryFilePicker;
 import il.co.bensavit.beep.ui.ModelPickerAndDownloader;
+import il.co.bensavit.beep.ui.TutorialManager;
+import il.co.bensavit.beep.ui.adapter.TaskActionListener;
+import il.co.bensavit.beep.ui.adapter.TranscriptionTaskAdapter;
 import il.co.bensavit.beep.ui.anim.BackgroundAnimator;
-import il.co.bensavit.beep.ui.anim.LightTextureDrawable;
 import il.co.bensavit.beep.ui.anim.ShimmerDrawable;
 import il.co.bensavit.beep.ui.dialogs.AboutDialogFragment;
 import il.co.bensavit.beep.ui.dialogs.AudioRecordDialogFragment;
@@ -59,13 +50,15 @@ import il.co.bensavit.beep.utils.FileUtils;
 import il.co.bensavit.beep.utils.InAppUpdateManager;
 import il.co.bensavit.beep.utils.Logger;
 import il.co.bensavit.beep.utils.ModelUtils;
-import il.co.bensavit.beep.ui.TutorialManager;
 
 public class MainActivity extends AppCompatActivity {
 
     private ActivityMainBinding binding;
     private MainViewModel viewModel;
     private InAppUpdateManager inAppUpdateManager;
+    private TranscriptionTaskAdapter taskAdapter;
+    private Snackbar activeSnackbar;
+    private MaterialTapTargetSequence activeTutorialSequence;
 
     private static final String TAG = "MainActivity";
 
@@ -100,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
         inAppUpdateManager = new InAppUpdateManager(this, updateActivityResultLauncher);
         inAppUpdateManager.checkForUpdates(false);
 
+        setupRecyclerView();
         setupObservers();
         setupFragmentResultListeners();
         restoreExistingTasks();
@@ -114,7 +108,6 @@ public class MainActivity extends AppCompatActivity {
             } else if (item.getItemId() == R.id.action_download_model) {
                 onDownloadModelClick(null);
                 return true;
-
             } else if (item.getItemId() == R.id.action_about) {
                 new AboutDialogFragment().show(getSupportFragmentManager(), "About");
                 return true;
@@ -175,11 +168,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         updateToggleAllButtonState();
-        setupTaskContainerGesture();
 
-        // Attach Shimmer Reflection light sweep animation to UI elements
-        //ShimmerDrawable.attachTo(binding.buttonHistory);
-        //ShimmerDrawable.attachTo(binding.buttonClear);
         cardShimmer = ShimmerDrawable.attachTo(binding.outputCard, BackgroundAnimator.getModeAccentColor(viewModel.isGeminiSelected.getValue()));
         binding.toolbar.setOnLongClickListener(v -> {
             viewModel.setTutorialShown(false);
@@ -196,8 +185,56 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState == null) {
             handleIntent(getIntent());
         }
+    }
 
+    private void setupRecyclerView() {
+        binding.recyclerViewTasks.setLayoutManager(new LinearLayoutManager(this));
+        taskAdapter = new TranscriptionTaskAdapter(this, viewModel, new TaskActionListener() {
+            @Override
+            public void onTaskRemoveRequested(MainViewModel.TaskEntry taskEntry, TranscriptionTaskViewModel taskViewModel) {
+                taskViewModel.stopTranscription();
+                viewModel.removeTaskEntry(taskEntry.taskKey);
+                updateTaskList();
+            }
 
+            @Override
+            public void onFileRenameRequested(MainViewModel.TaskEntry taskEntry) {
+                FileUtils.showRenameDialog(MainActivity.this, taskEntry.file, newFile -> {
+                    viewModel.updateTaskEntryFile(taskEntry.taskKey, newFile);
+                    updateTaskList();
+                });
+            }
+
+            @Override
+            public void onShowSnackbar(String message, String actionText, View.OnClickListener actionListener) {
+                showSnackbar(message, actionText, actionListener);
+            }
+
+            @Override
+            public void onToggleAllStateChanged() {
+                updateToggleAllButtonState();
+            }
+
+            @Override
+            public void onMinimizeOtherTasks(String keepTaskKey) {
+                minimizeOtherTasks(keepTaskKey);
+            }
+
+            @Override
+            public void onSetAllTasksMinimized(boolean minimize) {
+                setAllTasksMinimized(minimize);
+            }
+        });
+        binding.recyclerViewTasks.setAdapter(taskAdapter);
+        setupTaskContainerGesture();
+    }
+
+    private void updateTaskList() {
+        if (viewModel == null || taskAdapter == null) return;
+        List<MainViewModel.TaskEntry> entries = new ArrayList<>(viewModel.getActiveTaskEntries());
+        boolean newestFirst = viewModel.isSortTasksNewestFirst();
+        Collections.sort(entries, (e1, e2) -> newestFirst ? Long.compare(e2.timestamp, e1.timestamp) : Long.compare(e1.timestamp, e2.timestamp));
+        taskAdapter.submitList(entries, this::updateToggleAllButtonState);
     }
 
     private void showSnackbar(String message) {
@@ -206,27 +243,50 @@ public class MainActivity extends AppCompatActivity {
 
     private void showSnackbar(String message, String actionLabel, View.OnClickListener actionListener) {
         if (binding == null) return;
-        com.google.android.material.snackbar.Snackbar snackbar =
-                com.google.android.material.snackbar.Snackbar.make(binding.getRoot(),
+        dismissActiveSnackbar();
+        activeSnackbar = Snackbar.make(binding.getRoot(),
                         HtmlCompat.fromHtml(message, HtmlCompat.FROM_HTML_MODE_LEGACY),
-                        com.google.android.material.snackbar.Snackbar.LENGTH_LONG);
-        snackbar.setTextMaxLines(5);
+                        Snackbar.LENGTH_LONG);
+        activeSnackbar.setTextMaxLines(5);
         if (actionLabel != null && actionListener != null) {
-            snackbar.setAction(actionLabel, actionListener);
+            activeSnackbar.setAction(actionLabel, actionListener);
         }
-        snackbar.show();
+        activeSnackbar.addCallback(new Snackbar.Callback() {
+            @Override
+            public void onDismissed(Snackbar transientBottomBar, int event) {
+                if (activeSnackbar == transientBottomBar) {
+                    activeSnackbar = null;
+                }
+            }
+        });
+        activeSnackbar.show();
+    }
+
+    private void dismissActiveSnackbar() {
+        if (activeSnackbar != null) {
+            activeSnackbar.dismiss();
+            activeSnackbar = null;
+        }
     }
 
     private void setMode(boolean isNowGemini) {
-        boolean currentlyGemini = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue());
-        if (currentlyGemini == isNowGemini) {
+        if (Objects.equals(viewModel.isGeminiSelected.getValue(), isNowGemini)) {
             return;
         }
+
         viewModel.setGeminiSelected(isNowGemini);
+
+        if (!isNowGemini && !il.co.bensavit.beep.single.LocalWhisper.INSTANCE.isInitialized()) {
+            if (viewModel.currentModelName.getValue() == null || viewModel.currentModelName.getValue().trim().isEmpty()) {
+                onDownloadModelClick(null);
+            }
+        }
+
         if (isNowGemini) {
             if (viewModel.getGeminiApiKey().trim().isEmpty()) {
                 showSnackbar(getString(R.string.gemini_key_required), getString(R.string.action_configure_gemini),
                         v -> new GeminiConfigDialogFragment().show(getSupportFragmentManager(), "GeminiConfig"));
+                new GeminiConfigDialogFragment().show(getSupportFragmentManager(), "GeminiConfig");
             } else {
                 showSnackbar(getString(R.string.switched_to_online_mode));
             }
@@ -246,86 +306,77 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void toggleMode() {
-        boolean currentlyGemini = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue());
-        setMode(!currentlyGemini);
+        boolean currentIsGemini = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue());
+        setMode(!currentIsGemini);
+    }
+
+    private void updateModeMenuTitle(boolean isGemini) {
+        if (binding == null) return;
+        MenuItem modeItem = binding.toolbar.getMenu().findItem(R.id.action_mode_toggle);
+        if (modeItem != null) {
+            modeItem.setTitle(isGemini ? R.string.mode_offline : R.string.mode_online);
+        }
+
+        MenuItem selectLangItem = binding.toolbar.getMenu().findItem(R.id.action_select_language);
+        if (selectLangItem != null) {
+            selectLangItem.setVisible(!isGemini);
+        }
+
+        MenuItem chooseGeminiModelItem = binding.toolbar.getMenu().findItem(R.id.action_choose_gemini_model);
+        if (chooseGeminiModelItem != null) {
+            chooseGeminiModelItem.setVisible(isGemini);
+        }
+
+        MenuItem geminiHelpItem = binding.toolbar.getMenu().findItem(R.id.action_gemini_help);
+        if (geminiHelpItem != null) {
+            geminiHelpItem.setVisible(isGemini);
+        }
     }
 
     private void setupToolbarSwipeGestures() {
-        android.view.GestureDetector gestureDetector = new android.view.GestureDetector(this,
-                new android.view.GestureDetector.SimpleOnGestureListener() {
-                    private static final int SWIPE_THRESHOLD = 52;
-                    private static final int SWIPE_VELOCITY_THRESHOLD = 52;
+        GestureDetector gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            private static final int SWIPE_THRESHOLD = 50;
+            private static final int SWIPE_VELOCITY_THRESHOLD = 50;
 
-                    @Override
-                    public boolean onDown(@androidx.annotation.NonNull android.view.MotionEvent e) {
-                        return true;
-                    }
+            @Override
+            public boolean onDown(@NonNull MotionEvent e) {
+                return true;
+            }
 
-                    @Override
-                    public boolean onSingleTapUp(@androidx.annotation.NonNull android.view.MotionEvent e) {
-                        binding.toolbar.performClick();
-                        return true;
-                    }
-
-                    @Override
-                    public void onLongPress(@androidx.annotation.NonNull android.view.MotionEvent e) {
-                        binding.toolbar.performLongClick();
-                    }
-
-                    @Override
-                    public boolean onFling(android.view.MotionEvent e1, @androidx.annotation.NonNull android.view.MotionEvent e2, float velocityX, float velocityY) {
-                        if (e1 == null) return false;
-                        float diffX = e2.getX() - e1.getX();
-                        float diffY = e2.getY() - e1.getY();
-                        if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD ||
-                                Math.abs(diffY) > SWIPE_THRESHOLD && Math.abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
-                            toggleMode();
+            @Override
+            public boolean onFling(MotionEvent e1, @NonNull MotionEvent e2, float velocityX, float velocityY) {
+                if (e1 == null) return false;
+                if (Boolean.TRUE.equals(TranscriptionTaskViewModel.isTranscriptionRunning.getValue())) {
+                    return false;
+                }
+                float diffX = e2.getX() - e1.getX();
+                float diffY = e2.getY() - e1.getY();
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
+                        boolean currentIsGemini = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue());
+                        if (diffX < 0 && !currentIsGemini) {
+                            setMode(true);
+                            return true;
+                        } else if (diffX > 0 && currentIsGemini) {
+                            setMode(false);
                             return true;
                         }
-                        return false;
                     }
-                });
+                }
+                return false;
+            }
+        });
 
         binding.toolbar.setOnTouchListener((v, event) -> {
             boolean handled = gestureDetector.onTouchEvent(event);
-            if (event.getAction() == android.view.MotionEvent.ACTION_UP && !handled) {
+            if (event.getAction() == MotionEvent.ACTION_UP && !handled) {
                 v.performClick();
             }
             return handled;
         });
     }
 
-    private void updateModeMenuTitle(Boolean isGemini) {
-        if (isGemini == null) return;
-        MenuItem modeItem = binding.toolbar.getMenu().findItem(R.id.action_mode_toggle);
-        if (modeItem != null) {
-            String modeName = getString(isGemini ? R.string.mode_online : R.string.mode_offline);
-            modeItem.setTitle(getString(R.string.mode_toggle_format, modeName));
-        }
-    }
-
     private void setupObservers() {
-        viewModel.userMessage.observe(this, userMsg -> {
-            if (userMsg != null) {
-                showSnackbar(userMsg.message, userMsg.actionLabel,
-                        userMsg.actionRunnable != null ? v -> userMsg.actionRunnable.run() : null);
-                viewModel.clearUserMessage();
-            }
-        });
-
-        viewModel.isProgressVisible.observe(this, visible ->
-                binding.progressBar.setVisibility(visible ? View.VISIBLE : View.GONE));
-
-        TranscriptionTaskViewModel.isTranscriptionRunning.observe(this, running -> {
-            if (Boolean.TRUE.equals(running)) {
-                backgroundAnimator.pause(binding.getRoot(), viewModel.isGeminiSelected.getValue());
-            } else {
-                backgroundAnimator.start(binding.getRoot(), viewModel.isGeminiSelected.getValue());
-            }
-        });
-
-        TranscriptionTaskViewModel.activeTaskCount.observe(this, count -> updateModelSubtitle());
-
         viewModel.isGeminiSelected.observe(this, selected -> {
             if (Boolean.TRUE.equals(TranscriptionTaskViewModel.isAnyTranscriptionRunning())) {
                 backgroundAnimator.pause(binding.getRoot(), selected);
@@ -343,7 +394,7 @@ public class MainActivity extends AppCompatActivity {
 
         viewModel.isSortTasksNewestFirst.observe(this, newestFirst -> {
             if (newestFirst != null) {
-                applyTaskSorting();
+                updateTaskList();
             }
         });
 
@@ -405,6 +456,37 @@ public class MainActivity extends AppCompatActivity {
                 modeItem.setEnabled(!running);
             }
         });
+
+        TranscriptionTaskViewModel.activeTaskCount.observe(this, count -> updateModelSubtitle());
+
+        viewModel.userMessage.observe(this, userMessage -> {
+            if (userMessage != null && userMessage.message != null && !userMessage.message.isEmpty() && binding != null) {
+                if (userMessage.actionLabel != null && userMessage.actionRunnable != null) {
+                    showSnackbar(userMessage.message, userMessage.actionLabel, v -> userMessage.actionRunnable.run());
+                } else {
+                    showSnackbar(userMessage.message);
+                }
+                binding.getRoot().post(() -> viewModel.clearUserMessage());
+            }
+        });
+
+        viewModel.isProgressVisible.observe(this, isVisible -> {
+            if (binding != null) {
+                boolean show = Boolean.TRUE.equals(isVisible);
+                binding.progressBar.animate().cancel();
+                if (show) {
+                    binding.progressBar.setAlpha(0f);
+                    binding.progressBar.setVisibility(View.VISIBLE);
+                    binding.progressBar.animate().alpha(1f).setDuration(150).start();
+                } else {
+                    binding.progressBar.animate().alpha(0f).setDuration(150).withEndAction(() -> {
+                        if (binding != null) {
+                            binding.progressBar.setVisibility(View.GONE);
+                        }
+                    }).start();
+                }
+            }
+        });
     }
 
     private void setupFragmentResultListeners() {
@@ -414,246 +496,34 @@ public class MainActivity extends AppCompatActivity {
                 if (isModelMissing()) {
                     return;
                 }
-                addTranscriptionTask(new java.io.File(filePath));
+                addTranscriptionTask(new File(filePath));
             }
         });
     }
 
     private void restoreExistingTasks() {
-        for (MainViewModel.TaskEntry taskEntry : viewModel.getActiveTaskEntries()) {
-            addTranscriptionTask(taskEntry.file, taskEntry);
-        }
-        applyTaskSorting();
+        updateTaskList();
     }
 
-    private void applyTaskSorting() {
-        if (binding == null) return;
-        int count = binding.transcriptionContainer.getChildCount();
-        if (count <= 1) return;
+    private void addTranscriptionTask(File file) {
+        long timestamp = System.currentTimeMillis();
+        String taskKey = file.getAbsolutePath() + "_" + timestamp;
+        viewModel.addTaskEntry(file, taskKey);
+        updateTaskList();
 
-        List<View> taskViews = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            taskViews.add(binding.transcriptionContainer.getChildAt(i));
-        }
+        TranscriptionTaskViewModel taskViewModel = viewModel.getOrCreateTaskViewModel(taskKey);
+        taskViewModel.initTask(taskKey, viewModel);
 
-        boolean newestFirst = viewModel == null || viewModel.isSortTasksNewestFirst();
-        Collections.sort(taskViews, (v1, v2) -> {
-            Object tag1 = v1.getTag();
-            Object tag2 = v2.getTag();
-            long t1 = (tag1 instanceof Long) ? (Long) tag1 : 0L;
-            long t2 = (tag2 instanceof Long) ? (Long) tag2 : 0L;
-            return newestFirst ? Long.compare(t2, t1) : Long.compare(t1, t2);
-        });
-
-        LayoutTransition transition = binding.transcriptionContainer.getLayoutTransition();
-        binding.transcriptionContainer.setLayoutTransition(null);
-        try {
-            binding.transcriptionContainer.removeAllViews();
-            for (View v : taskViews) {
-                binding.transcriptionContainer.addView(v);
-            }
-        } finally {
-            binding.transcriptionContainer.setLayoutTransition(transition);
-        }
-    }
-
-    private void addTranscriptionTask(java.io.File file) {
-        addTranscriptionTask(file, null);
-    }
-
-    private void addTranscriptionTask(java.io.File file, MainViewModel.TaskEntry restoredTaskEntry) {
-        final java.io.File[] currentFile = new java.io.File[]{file};
-        final String[] currentTaskModel = new String[]{ restoredTaskEntry != null ? restoredTaskEntry.modelName : null };
-        View taskView = getLayoutInflater().inflate(R.layout.item_transcription_task, binding.transcriptionContainer, false);
-
-        long timestamp = restoredTaskEntry != null ? restoredTaskEntry.timestamp : System.currentTimeMillis();
-        taskView.setTag(timestamp);
+        boolean isGemini = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue());
+        String selectedLang = viewModel.language.getValue();
+        String language = (selectedLang != null) ? selectedLang : "auto";
+        taskViewModel.runTranscription(file, language, isGemini);
 
         boolean newestFirst = viewModel == null || viewModel.isSortTasksNewestFirst();
         if (newestFirst) {
-            binding.transcriptionContainer.addView(taskView, 0);
-            binding.scrollView.post(() -> binding.scrollView.fullScroll(View.FOCUS_UP));
+            binding.recyclerViewTasks.post(() -> binding.recyclerViewTasks.scrollToPosition(0));
         } else {
-            binding.transcriptionContainer.addView(taskView);
-            binding.scrollView.post(() -> binding.scrollView.fullScroll(View.FOCUS_DOWN));
-        }
-
-        View taskCard = taskView.findViewById(R.id.task_card);
-        LightTextureDrawable.attachTo(taskCard);
-        ShimmerDrawable.attachTo(taskCard);
-
-        android.widget.TextView fileNameTv = taskView.findViewById(R.id.text_filename);
-        android.widget.TextView percentTv = taskView.findViewById(R.id.text_progress_percent);
-        android.widget.TextView elapsedTimeTv = taskView.findViewById(R.id.text_elapsed_time);
-        com.google.android.material.progressindicator.CircularProgressIndicator progressBar = taskView.findViewById(R.id.task_progress_bar);
-        android.widget.TextView statusTv = taskView.findViewById(R.id.text_status);
-
-        fileNameTv.setText(currentFile[0].getName());
-
-        long startTime = System.currentTimeMillis();
-        boolean isNewTask = (restoredTaskEntry == null);
-
-        // Create or retrieve a dedicated ViewModel for this task
-        final String taskKey = isNewTask ? currentFile[0].getAbsolutePath() + "_" + System.currentTimeMillis() : restoredTaskEntry.taskKey;
-        if (isNewTask) {
-            viewModel.addTaskEntry(currentFile[0], taskKey);
-        }
-
-        TranscriptionTaskViewModel taskViewModel = new ViewModelProvider(viewModel.getTaskViewModelStore(),
-                new ViewModelProvider.AndroidViewModelFactory(getApplication()))
-                .get(taskKey, TranscriptionTaskViewModel.class);
-        taskViewModel.initTask(taskKey, viewModel);
-
-        if (restoredTaskEntry != null && restoredTaskEntry.status != MainViewModel.TaskEntry.Status.RUNNING) {
-            // Task completed or stopped previously
-            progressBar.setVisibility(View.GONE);
-            percentTv.setVisibility(View.GONE);
-            if (restoredTaskEntry.elapsedTimeMs > 0) {
-                long elapsedMs = restoredTaskEntry.elapsedTimeMs;
-                long secs = (elapsedMs / 1000) % 60;
-                long mins = (elapsedMs / (1000 * 60)) % 60;
-                long tenths = (elapsedMs % 1000) / 100;
-                elapsedTimeTv.setText(getString(R.string.elapsed_time_format, mins, secs, tenths));
-                elapsedTimeTv.setVisibility(View.VISIBLE);
-            }
-
-            if (restoredTaskEntry.status == MainViewModel.TaskEntry.Status.SUCCEEDED && restoredTaskEntry.resultText != null) {
-                String modelName = resolveTaskModelName(restoredTaskEntry, restoredTaskEntry.modelName);
-                String displayName = ModelUtils.formatModelDisplayName(this, modelName);
-                statusTv.setText(getString(R.string.transcription_complete, displayName));
-                displayTaskResult(taskView, taskKey, restoredTaskEntry.resultText, restoredTaskEntry);
-                taskViewModel.setRestoredResult(restoredTaskEntry.resultText, false);
-            } else if (restoredTaskEntry.resultText != null) {
-                statusTv.setText(restoredTaskEntry.resultText);
-                taskViewModel.setRestoredResult(restoredTaskEntry.resultText, false);
-            }
-        } else {
-            progressBar.setVisibility(View.VISIBLE);
-            progressBar.setIndeterminate(true);
-            percentTv.setVisibility(View.GONE);
-            statusTv.setText(R.string.transcription_starting);
-            if (restoredTaskEntry != null && restoredTaskEntry.workId != null) {
-                taskViewModel.observeExistingWork(restoredTaskEntry.workId);
-            } else if (restoredTaskEntry != null) {
-                boolean isGemini = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue());
-                String selectedLang = viewModel.language.getValue();
-                String language = (selectedLang != null) ? selectedLang : "auto";
-                taskViewModel.runTranscription(currentFile[0], language, isGemini);
-            }
-        }
-
-        taskView.setOnLongClickListener(v -> {
-            boolean isRunning = Boolean.TRUE.equals(taskViewModel.isProgressVisible.getValue());
-            int titleRes = isRunning ? R.string.dialog_cancel_and_remove_task_title : R.string.dialog_remove_task_title;
-            int messageRes = isRunning ? R.string.dialog_cancel_and_remove_task_message : R.string.dialog_remove_task_message;
-
-            MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
-                    .setTitle(titleRes)
-                    .setMessage(getString(messageRes, currentFile[0].getName()))
-                    .setPositiveButton(R.string.remove, (dialog, which) -> {
-                        taskViewModel.stopTranscription();
-                        viewModel.removeTaskEntry(taskKey);
-                        binding.transcriptionContainer.removeView(taskView);
-                        updateToggleAllButtonState();
-                    });
-
-            if (!TranscriptionTaskViewModel.isAnyTranscriptionRunning()) {
-                builder.setNeutralButton(R.string.rename, (dialog, which) -> {
-                    FileUtils.showRenameDialog(this, currentFile[0], newFile -> {
-                        currentFile[0] = newFile;
-                        fileNameTv.setText(newFile.getName());
-                        viewModel.updateTaskEntryFile(taskKey, newFile);
-                    });
-                });
-            }
-
-            builder.setNegativeButton(R.string.button_cancel, null)
-                    .show();
-            return true;
-        });
-
-        taskViewModel.transcriptionText.observe(this, text -> {
-            if (text != null) {
-                if (text.startsWith("MODEL_SELECTED:")) {
-                    String modelId = text.substring("MODEL_SELECTED:".length());
-                    currentTaskModel[0] = modelId;
-                    viewModel.updateTaskModelName(taskKey, modelId);
-                    String displayName = ModelUtils.formatModelDisplayName(this, modelId);
-                    statusTv.setText(getString(R.string.model_subtitle, displayName));
-                } else if (Boolean.TRUE.equals(taskViewModel.isProgressVisible.getValue())) {
-                    if (text.endsWith("%")) {
-                        try {
-                            String numericPart = text.replace("%", "").trim();
-                            java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d+(?:\\.\\d+)?)").matcher(numericPart);
-                            if (matcher.find()) {
-                                String matchGroup = matcher.group(1);
-                                if (matchGroup != null) {
-                                    double val = Double.parseDouble(matchGroup);
-                                    int percent = Math.min(100, Math.max(0, (int) Math.round(val)));
-                                    percentTv.setText(percent + "%");
-                                    percentTv.setVisibility(View.VISIBLE);
-                                    if (progressBar.isIndeterminate()) {
-                                        progressBar.setIndeterminate(false);
-                                    }
-                                    progressBar.setProgress(percent, true);
-                                    statusTv.setText(R.string.transcribing_progress);
-                                } else {
-                                    statusTv.setText(text);
-                                }
-                            } else {
-                                statusTv.setText(text);
-                            }
-                        } catch (Exception e) {
-                            statusTv.setText(text);
-                        }
-                    } else {
-                        statusTv.setText(text);
-                        percentTv.setVisibility(View.GONE);
-                        if (!progressBar.isIndeterminate()) {
-                            progressBar.setIndeterminate(true);
-                        }
-                    }
-                } else if (isErrorOrCancelledMessage(text)) {
-                    statusTv.setText(text);
-                    if (text.contains(getString(R.string.error_low_memory))) {
-                        showSnackbar(text, getString(R.string.mode_online), v -> {
-                            viewModel.setGeminiSelected(true);
-                        });
-                    }
-                } else if (!text.equals(getString(R.string.transcription_starting))) {
-                    if (restoredTaskEntry != null && restoredTaskEntry.status != MainViewModel.TaskEntry.Status.RUNNING
-                            && Objects.equals(text, restoredTaskEntry.resultText)) {
-                        return;
-                    }
-                    MainViewModel.TaskEntry entry = viewModel.getTaskEntry(taskKey);
-                    String modelName = resolveTaskModelName(entry, currentTaskModel[0]);
-                    String displayName = ModelUtils.formatModelDisplayName(this, modelName);
-                    statusTv.setText(getString(R.string.transcription_complete, displayName));
-                    displayTaskResult(taskView, taskKey, text, restoredTaskEntry);
-                }
-            }
-        });
-
-        taskViewModel.isProgressVisible.observe(this, visible -> {
-            progressBar.setVisibility(visible ? View.VISIBLE : View.GONE);
-            if (!visible) {
-                percentTv.setVisibility(View.GONE);
-                if (restoredTaskEntry == null || restoredTaskEntry.status == MainViewModel.TaskEntry.Status.RUNNING) {
-                    long elapsedMs = System.currentTimeMillis() - startTime;
-                    long secs = (elapsedMs / 1000) % 60;
-                    long mins = (elapsedMs / (1000 * 60)) % 60;
-                    long tenths = (elapsedMs % 1000) / 100;
-                    elapsedTimeTv.setText(getString(R.string.elapsed_time_format, mins, secs, tenths));
-                    elapsedTimeTv.setVisibility(View.VISIBLE);
-                }
-            }
-        });
-
-        if (isNewTask) {
-            boolean isGemini = Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue());
-            String selectedLang = viewModel.language.getValue();
-            String language = (selectedLang != null) ? selectedLang : "auto";
-            taskViewModel.runTranscription(currentFile[0], language, isGemini);
+            binding.recyclerViewTasks.post(() -> binding.recyclerViewTasks.scrollToPosition(Math.max(0, taskAdapter.getItemCount() - 1)));
         }
     }
 
@@ -682,7 +552,7 @@ public class MainActivity extends AppCompatActivity {
                 Logger.w(TAG, "handleIntent: EXTRA_STREAM is null");
             }
         } else if (Intent.ACTION_SEND_MULTIPLE.equals(action) && type != null) {
-            java.util.ArrayList<android.net.Uri> uris = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, android.net.Uri.class);
+            ArrayList<android.net.Uri> uris = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, android.net.Uri.class);
             Logger.d(TAG, "handleIntent: ACTION_SEND_MULTIPLE uris=" + uris);
             if (uris != null) {
                 for (android.net.Uri uri : uris) {
@@ -695,7 +565,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showTutorialPrompt() {
-        TutorialManager.showTutorialPrompt(
+        dismissActiveSnackbar();
+        if (activeTutorialSequence != null) {
+            activeTutorialSequence.dismiss();
+            activeTutorialSequence = null;
+        }
+        activeTutorialSequence = TutorialManager.showTutorialPrompt(
                 this,
                 binding,
                 viewModel,
@@ -703,11 +578,13 @@ public class MainActivity extends AppCompatActivity {
                 new TutorialManager.TutorialListener() {
                     @Override
                     public void onTutorialCompleted() {
+                        activeTutorialSequence = null;
                         showSnackbar(getString(R.string.tutorial_completed));
                     }
 
                     @Override
                     public void onTutorialSkipped() {
+                        activeTutorialSequence = null;
                         showSnackbar(getString(R.string.tutorial_skipped));
                     }
                 }
@@ -837,7 +714,7 @@ public class MainActivity extends AppCompatActivity {
                 .setMessage(messageRes)
                 .setPositiveButton(R.string.button_clear, (dialog, which) -> {
                     viewModel.clearAllResources(unloadNativeModel);
-                    binding.transcriptionContainer.removeAllViews();
+                    updateTaskList();
                     updateModelSubtitle();
                     updateToggleAllButtonState();
                 })
@@ -898,14 +775,12 @@ public class MainActivity extends AppCompatActivity {
         String currentLanguageName = (selectedIndex == 0 || selectedIndex >= languages.length) 
                 ? getString(R.string.default_language) 
                 : languages[selectedIndex];
-        String dialogTitle = getString(R.string.language_selector_title_format, currentLanguageName);
 
         new MaterialAlertDialogBuilder(this)
-                .setTitle(dialogTitle)
+                .setTitle(getString(R.string.language_selector_title_format, currentLanguageName))
                 .setSingleChoiceItems(languages, selectedIndex, (dialog, which) -> {
-                    if (which >= 0 && which < languageCodes.length && which < languages.length) {
+                    if (which >= 0 && which < languageCodes.length) {
                         String selectedCode = languageCodes[which];
-
                         viewModel.setLanguage(selectedCode);
 
                         String currentModel = viewModel.currentModelName.getValue();
@@ -915,7 +790,8 @@ public class MainActivity extends AppCompatActivity {
                             String errorMessage = getString(R.string.error_language_model_conflict, modelDisplayName);
                             showSnackbar(errorMessage);
                         } else {
-                            showSnackbar(getString(R.string.language_selector_hint) + ": " + languages[which]);
+                            String langName = languages[which];
+                            showSnackbar(getString(R.string.language_selector_hint) + ": " + langName);
                         }
                     }
                     dialog.dismiss();
@@ -924,169 +800,10 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
-    private boolean isErrorOrCancelledMessage(String text) {
-        if (text == null) return false;
-        return text.startsWith("Error")
-                || text.startsWith(getString(R.string.error_transcription_failed))
-                || text.contains(getString(R.string.error_low_memory))
-                || text.equals(getString(R.string.transcription_cancelled))
-                || text.startsWith("Failed to");
-    }
-
-    private void displayTaskResult(View taskView, String taskKey, String rawResult, MainViewModel.TaskEntry restoredTaskEntry) {
-        if (rawResult == null || rawResult.isEmpty()) return;
-
-        View resultContainer = taskView.findViewById(R.id.container_result);
-        View structuredContainer = taskView.findViewById(R.id.container_result_structured);
-        View summaryContainer = taskView.findViewById(R.id.container_summary);
-        View summaryHeader = taskView.findViewById(R.id.header_summary);
-        ImageView summaryChevron = taskView.findViewById(R.id.icon_summary_chevron);
-        TextView summaryBody = taskView.findViewById(R.id.text_summary_body);
-
-        View transcriptionContainer = taskView.findViewById(R.id.container_transcription);
-        View transcriptionHeader = taskView.findViewById(R.id.header_transcription);
-        ImageView transcriptionChevron = taskView.findViewById(R.id.icon_transcription_chevron);
-        TextView transcriptionBody = taskView.findViewById(R.id.text_transcription_body);
-
-        TextView resultTv = taskView.findViewById(R.id.text_result);
-        MaterialButton maximizeBtn = taskView.findViewById(R.id.button_maximize);
-
-        summaryBody.setMovementMethod(LinkMovementMethod.getInstance());
-        transcriptionBody.setMovementMethod(LinkMovementMethod.getInstance());
-        resultTv.setMovementMethod(LinkMovementMethod.getInstance());
-
-        MainViewModel.TaskEntry currentTaskEntry = viewModel.getTaskEntry(taskKey);
-        MainViewModel.TaskEntry taskEntry = currentTaskEntry != null ? currentTaskEntry : restoredTaskEntry;
-
-        boolean initialSummaryExpanded = taskEntry == null || taskEntry.isSummaryExpanded;
-        boolean initialTranscriptionExpanded = taskEntry == null || taskEntry.isTranscriptionExpanded;
-
-        final boolean[] isSummaryExpanded = new boolean[]{initialSummaryExpanded};
-        final boolean[] isTranscriptionExpanded = new boolean[]{initialTranscriptionExpanded};
-
-        JSONObject json = null;
-        try {
-            json = new JSONObject(rawResult);
-        } catch (JSONException ignored) {}
-
-        boolean isCollapsed = maximizeBtn.getVisibility() == View.VISIBLE && resultContainer.getVisibility() == View.GONE;
-        resultContainer.setVisibility(isCollapsed ? View.GONE : View.VISIBLE);
-        maximizeBtn.setVisibility(View.VISIBLE);
-        maximizeBtn.setText(isCollapsed ? R.string.button_maximize_task : R.string.button_minimize_task);
-
-        if (json != null && (json.has("Transcription") || json.has("Summary"))) {
-            String transcription = json.optString("Transcription", "").trim();
-            String summary = json.optString("Summary", "").trim();
-
-            boolean hasContent = !transcription.isEmpty() || !summary.isEmpty();
-            if (hasContent) {
-                structuredContainer.setVisibility(View.VISIBLE);
-                resultTv.setVisibility(View.GONE);
-
-                if (!summary.isEmpty()) {
-                    summaryContainer.setVisibility(View.VISIBLE);
-                    summaryBody.setText(formatHtmlText(summary));
-                    summaryBody.setVisibility(isSummaryExpanded[0] ? View.VISIBLE : View.GONE);
-                    summaryChevron.setRotation(isSummaryExpanded[0] ? 0f : -90f);
-
-                    summaryHeader.setOnClickListener(v -> {
-                        isSummaryExpanded[0] = !isSummaryExpanded[0];
-                        TransitionManager.beginDelayedTransition((ViewGroup) taskView);
-                        summaryBody.setVisibility(isSummaryExpanded[0] ? View.VISIBLE : View.GONE);
-                        summaryChevron.animate().rotation(isSummaryExpanded[0] ? 0f : -90f).setDuration(200).start();
-                        viewModel.updateTaskExpandState(taskKey, isSummaryExpanded[0], isTranscriptionExpanded[0]);
-                    });
-                } else {
-                    summaryContainer.setVisibility(View.GONE);
-                }
-
-                if (!transcription.isEmpty()) {
-                    transcriptionContainer.setVisibility(View.VISIBLE);
-                    transcriptionBody.setText(formatHtmlText(transcription));
-                    transcriptionBody.setVisibility(isTranscriptionExpanded[0] ? View.VISIBLE : View.GONE);
-                    transcriptionChevron.setRotation(isTranscriptionExpanded[0] ? 0f : -90f);
-
-                    transcriptionHeader.setOnClickListener(v -> {
-                        isTranscriptionExpanded[0] = !isTranscriptionExpanded[0];
-                        TransitionManager.beginDelayedTransition((ViewGroup) taskView);
-                        transcriptionBody.setVisibility(isTranscriptionExpanded[0] ? View.VISIBLE : View.GONE);
-                        transcriptionChevron.animate().rotation(isTranscriptionExpanded[0] ? 0f : -90f).setDuration(200).start();
-                        viewModel.updateTaskExpandState(taskKey, isSummaryExpanded[0], isTranscriptionExpanded[0]);
-                    });
-                } else {
-                    transcriptionContainer.setVisibility(View.GONE);
-                }
-            } else {
-                structuredContainer.setVisibility(View.GONE);
-                resultTv.setVisibility(View.VISIBLE);
-                resultTv.setText(formatHtmlText(rawResult));
-            }
-        } else {
-            structuredContainer.setVisibility(View.GONE);
-            resultTv.setVisibility(View.VISIBLE);
-            resultTv.setText(formatHtmlText(rawResult));
-        }
-
-        View.OnLongClickListener copyListener = v -> {
-            ClipboardManager clipboard = getSystemService(ClipboardManager.class);
-            if (clipboard != null) {
-                String copyText = rawResult;
-                if (v instanceof TextView) {
-                    CharSequence text = ((TextView) v).getText();
-                    if (text != null && text.length() > 0) {
-                        copyText = text.toString();
-                    }
-                }
-                ClipData clip = ClipData.newPlainText("Transcription", copyText);
-                clipboard.setPrimaryClip(clip);
-                showSnackbar(getString(R.string.copied_to_clipboard));
-            }
-            return true;
-        };
-
-        summaryBody.setOnLongClickListener(copyListener);
-        transcriptionBody.setOnLongClickListener(copyListener);
-        resultTv.setOnLongClickListener(copyListener);
-
-        maximizeBtn.setOnClickListener(v -> {
-            boolean isVisible = resultContainer.getVisibility() == View.VISIBLE;
-            TransitionManager.beginDelayedTransition((ViewGroup) taskView);
-            resultContainer.setVisibility(isVisible ? View.GONE : View.VISIBLE);
-            maximizeBtn.setText(isVisible ? R.string.button_maximize_task : R.string.button_minimize_task);
-            updateToggleAllButtonState();
-        });
-
-        maximizeBtn.setOnLongClickListener(v -> {
-            showTaskCardContextMenu(v, taskView);
-            return true;
-        });
-
-        updateToggleAllButtonState();
-    }
-
-    private CharSequence formatHtmlText(String input) {
-        if (input == null || input.isEmpty()) {
-            return "";
-        }
-        if (hasHtmlTags(input)) {
-            return trimTrailingNewlines(HtmlCompat.fromHtml(input, HtmlCompat.FROM_HTML_MODE_LEGACY));
-        }
-        return input;
-    }
-
-    private boolean hasHtmlTags(String text) {
-        if (text == null || !text.contains("<")) return false;
-        return java.util.regex.Pattern.compile("<[a-zA-Z/][^>]*>").matcher(text).find();
-    }
-
     private boolean hasTasksWithResult() {
-        if (binding == null) return false;
-        int childCount = binding.transcriptionContainer.getChildCount();
-        for (int i = 0; i < childCount; i++) {
-            View taskView = binding.transcriptionContainer.getChildAt(i);
-            View resultContainer = taskView.findViewById(R.id.container_result);
-            MaterialButton maximizeBtn = taskView.findViewById(R.id.button_maximize);
-            if (maximizeBtn != null && maximizeBtn.getVisibility() == View.VISIBLE && resultContainer != null) {
+        if (viewModel == null) return false;
+        for (MainViewModel.TaskEntry entry : viewModel.getActiveTaskEntries()) {
+            if (entry.resultText != null && !entry.resultText.isEmpty()) {
                 return true;
             }
         }
@@ -1094,14 +811,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean areAllTasksMinimized() {
-        if (binding == null) return true;
-        int childCount = binding.transcriptionContainer.getChildCount();
-        for (int i = 0; i < childCount; i++) {
-            View taskView = binding.transcriptionContainer.getChildAt(i);
-            View resultContainer = taskView.findViewById(R.id.container_result);
-            MaterialButton maximizeBtn = taskView.findViewById(R.id.button_maximize);
-            if (maximizeBtn != null && maximizeBtn.getVisibility() == View.VISIBLE && resultContainer != null) {
-                if (resultContainer.getVisibility() == View.VISIBLE) {
+        if (viewModel == null) return true;
+        for (MainViewModel.TaskEntry entry : viewModel.getActiveTaskEntries()) {
+            if (entry.resultText != null && !entry.resultText.isEmpty()) {
+                if (entry.isSummaryExpanded || entry.isTranscriptionExpanded) {
                     return false;
                 }
             }
@@ -1120,47 +833,30 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setAllTasksMinimized(boolean minimize) {
-        if (binding == null) return;
-        int childCount = binding.transcriptionContainer.getChildCount();
-        if (childCount == 0) return;
-
-        TransitionManager.beginDelayedTransition(binding.transcriptionContainer);
-        for (int i = 0; i < childCount; i++) {
-            View taskView = binding.transcriptionContainer.getChildAt(i);
-            View resultContainer = taskView.findViewById(R.id.container_result);
-            MaterialButton maximizeBtn = taskView.findViewById(R.id.button_maximize);
-            if (resultContainer != null && maximizeBtn != null && maximizeBtn.getVisibility() == View.VISIBLE) {
-                resultContainer.setVisibility(minimize ? View.GONE : View.VISIBLE);
-                maximizeBtn.setText(minimize ? R.string.button_maximize_task : R.string.button_minimize_task);
-            }
+        if (viewModel == null) return;
+        for (MainViewModel.TaskEntry entry : viewModel.getActiveTaskEntries()) {
+            viewModel.updateTaskExpandState(entry.taskKey, !minimize, !minimize);
         }
-        updateToggleAllButtonState();
+        updateTaskList();
     }
 
-    private void minimizeOtherTasks(View keepTaskView) {
-        if (binding == null) return;
-        int childCount = binding.transcriptionContainer.getChildCount();
-        if (childCount == 0) return;
-
-        TransitionManager.beginDelayedTransition(binding.transcriptionContainer);
-        for (int i = 0; i < childCount; i++) {
-            View taskView = binding.transcriptionContainer.getChildAt(i);
-            View resultContainer = taskView.findViewById(R.id.container_result);
-            MaterialButton maximizeBtn = taskView.findViewById(R.id.button_maximize);
-            if (resultContainer != null && maximizeBtn != null && maximizeBtn.getVisibility() == View.VISIBLE) {
-                boolean shouldMinimize = (taskView != keepTaskView);
-                resultContainer.setVisibility(shouldMinimize ? View.GONE : View.VISIBLE);
-                maximizeBtn.setText(shouldMinimize ? R.string.button_maximize_task : R.string.button_minimize_task);
+    private void minimizeOtherTasks(String keepTaskKey) {
+        if (viewModel == null) return;
+        for (MainViewModel.TaskEntry entry : viewModel.getActiveTaskEntries()) {
+            if (!Objects.equals(entry.taskKey, keepTaskKey)) {
+                viewModel.updateTaskExpandState(entry.taskKey, false, false);
+            } else {
+                viewModel.updateTaskExpandState(entry.taskKey, true, true);
             }
         }
-        updateToggleAllButtonState();
+        updateTaskList();
     }
 
-    private void showTaskCardContextMenu(View anchorView, View currentTaskView) {
+    private void showTaskCardContextMenu(View anchorView, String currentTaskKey) {
         PopupMenu popup = new PopupMenu(this, anchorView);
         popup.getMenu().add(0, 1, 0, getString(R.string.minimize_all_tasks));
         popup.getMenu().add(0, 2, 1, getString(R.string.expand_all_tasks));
-        if (currentTaskView != null) {
+        if (currentTaskKey != null) {
             popup.getMenu().add(0, 3, 2, getString(R.string.minimize_other_tasks));
         }
         popup.setOnMenuItemClickListener(item -> {
@@ -1171,8 +867,8 @@ public class MainActivity extends AppCompatActivity {
             } else if (id == 2) {
                 setAllTasksMinimized(false);
                 return true;
-            } else if (id == 3 && currentTaskView != null) {
-                minimizeOtherTasks(currentTaskView);
+            } else if (id == 3 && currentTaskKey != null) {
+                minimizeOtherTasks(currentTaskKey);
                 return true;
             }
             return false;
@@ -1197,22 +893,13 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        binding.transcriptionContainer.setOnTouchListener((v, event) -> {
-            boolean handled = doubleTapDetector.onTouchEvent(event);
-            if (event.getAction() == MotionEvent.ACTION_UP && !handled) {
-                v.performClick();
+        binding.recyclerViewTasks.addOnItemTouchListener(new androidx.recyclerview.widget.RecyclerView.SimpleOnItemTouchListener() {
+            @Override
+            public boolean onInterceptTouchEvent(@NonNull androidx.recyclerview.widget.RecyclerView rv, @NonNull MotionEvent e) {
+                doubleTapDetector.onTouchEvent(e);
+                return false;
             }
-            return handled;
         });
-    }
-
-    private CharSequence trimTrailingNewlines(CharSequence text) {
-        if (text == null) return "";
-        int len = text.length();
-        while (len > 0 && Character.isWhitespace(text.charAt(len - 1))) {
-            len--;
-        }
-        return text.subSequence(0, len);
     }
 
     @Override
@@ -1224,21 +911,14 @@ public class MainActivity extends AppCompatActivity {
         updateModelSubtitle();
     }
 
-    private String resolveTaskModelName(MainViewModel.TaskEntry entry, String taskModelFallback) {
-        if (entry != null && entry.modelName != null && !entry.modelName.isEmpty() && !"auto".equals(entry.modelName)) {
-            return entry.modelName;
-        }
-        if (taskModelFallback != null && !taskModelFallback.isEmpty() && !"auto".equals(taskModelFallback)) {
-            return taskModelFallback;
-        }
-        return Boolean.TRUE.equals(viewModel.isGeminiSelected.getValue())
-                ? viewModel.getGeminiModelName()
-                : viewModel.currentModelName.getValue();
-    }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        dismissActiveSnackbar();
+        if (activeTutorialSequence != null) {
+            activeTutorialSequence.dismiss();
+            activeTutorialSequence = null;
+        }
         if (binding != null) {
             binding.toolbar.removeCallbacks(showTutorialRunnable);
         }
