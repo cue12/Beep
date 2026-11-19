@@ -1,14 +1,9 @@
 package il.co.bensavit.beep.bean;
 
-/**
- * Created by litonglinux@qq.com on 10/21/2023_7:48 AM
- */
 public class WhisperSegment {
-  private long start, end;
-  private String sentence;
-
-  public WhisperSegment() {
-  }
+  private final long start;
+  private final long end;
+  private final String sentence;
 
   public WhisperSegment(long start, long end, String sentence) {
     this.start = start;
@@ -26,18 +21,6 @@ public class WhisperSegment {
 
   public String getSentence() {
     return sentence;
-  }
-
-  public void setStart(long start) {
-    this.start = start;
-  }
-
-  public void setEnd(long end) {
-    this.end = end;
-  }
-
-  public void setSentence(String sentence) {
-    this.sentence = sentence;
   }
 
   @Override

@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import org.reactivestreams.Subscription;
 
 /**
  * Singleton execution service for offline Whisper native C++ inference and online Google Gemini AI calls.
@@ -133,7 +132,6 @@ public class WhisperService {
   private static final String TAG = "WhisperService";
   private static final String GEMINI_MODEL_PREFIX = "models/";
   private Handler mainHandler;
-  private Subscription currentSubscription;
   private final Set<ListenableFuture<GenerateContentResponse>> activeGeminiFutures = Collections.newSetFromMap(new ConcurrentHashMap<>());
   private int activeTranscriptions = 0;
 
@@ -203,7 +201,7 @@ public class WhisperService {
     long transcriptionStart = System.currentTimeMillis();
     List<WhisperSegment> transcription;
     try {
-      transcription = LocalWhisper.INSTANCE.transcribeDataWithTime(context, audioData, language, wrappedCallback::onProgress);
+      transcription = LocalWhisper.INSTANCE.transcribeDataWithTime(context, audioData, language, progress -> wrappedCallback.onProgress(progress + "%"));
     } catch (Throwable t) {
       Logger.e(TAG, "transcription error", t);
       String errorMsg = t.getMessage();
@@ -272,10 +270,6 @@ public class WhisperService {
       Logger.w(TAG, "Failed to fetch models during availability check for " + modelId + ": " + error);
       callback.onError(modelId);
     });
-  }
-
-  public void testApiKey(String apiKey, Consumer<String> onSuccess, Consumer<String> onError) {
-    testApiKey(App.getInstance(), apiKey, onSuccess, onError);
   }
 
   public void testApiKey(Context context, String apiKey, Consumer<String> onSuccess, Consumer<String> onError) {
@@ -774,11 +768,6 @@ public class WhisperService {
   }
 
   public synchronized void stopCurrentTranscription() {
-    if (currentSubscription != null) {
-      Logger.i(TAG, "Stopping active Gemini transcription subscription");
-      currentSubscription.cancel();
-      currentSubscription = null;
-    }
     if (!activeGeminiFutures.isEmpty()) {
       Logger.i(TAG, "Cancelling active Gemini futures (" + activeGeminiFutures.size() + ")");
       for (ListenableFuture<GenerateContentResponse> future : activeGeminiFutures) {

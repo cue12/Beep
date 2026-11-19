@@ -562,10 +562,6 @@ public class MainViewModel extends AndroidViewModel {
         _geminiModelName.setValue(model);
     }
 
-    public void checkModelAvailability(String modelId, String apiKey, TranscriptionCallback callback) {
-        whisperService.checkModelAvailability(modelId, apiKey, callback);
-    }
-
     public void testGeminiApiKey(String apiKey, java.util.function.Consumer<String> onSuccess, java.util.function.Consumer<String> onError) {
         whisperService.testApiKey(getApplication(), apiKey, onSuccess, onError);
     }

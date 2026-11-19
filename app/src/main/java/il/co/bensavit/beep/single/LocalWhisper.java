@@ -10,6 +10,7 @@ import androidx.core.os.HandlerCompat;
 import il.co.bensavit.beep.bean.WhisperSegment;
 import il.co.bensavit.beep.utils.AssetUtils;
 import il.co.bensavit.beep.utils.Logger;
+import il.co.bensavit.beep.utils.StorageUtils;
 import com.whispercpp.java.whisper.WhisperContext;
 
 import java.io.File;
@@ -51,10 +52,6 @@ public class LocalWhisper {
     }
   }
 
-  public String getCurrentModelPath() {
-    return currentModelPath;
-  }
-
   public String getCurrentModelName() {
     if (currentModelPath == null || currentModelPath.isEmpty()) {
       return "";
@@ -70,8 +67,8 @@ public class LocalWhisper {
     if (whisperContext == null) {
       Logger.i("LocalWhisper", "Initializing native Whisper context for: " + currentModelPath);
       Context appCtx = context.getApplicationContext();
-      File filesDir = appCtx.getFilesDir();
-      File modelFile = AssetUtils.copyFileIfNotExists(appCtx, filesDir, currentModelPath);
+      File modelsDir = StorageUtils.getModelsDir(appCtx);
+      File modelFile = AssetUtils.copyFileIfNotExists(appCtx, modelsDir, currentModelPath);
       
       if (!modelFile.exists()) {
         Logger.e("LocalWhisper", "Model file does not exist: " + modelFile.getAbsolutePath());

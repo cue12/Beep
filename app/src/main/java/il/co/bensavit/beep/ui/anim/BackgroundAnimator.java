@@ -58,7 +58,7 @@ public class BackgroundAnimator {
             }
 
             if (backdropDrawable != null) {
-                backdropDrawable.setProgress(fraction, animatedColors);
+                backdropDrawable.setColors(animatedColors);
             }
             ShimmerDrawable.setGlobalProgress(fraction);
         });
@@ -75,7 +75,7 @@ public class BackgroundAnimator {
 
         final int[] baseColors = getBaseColors(false);
         if (backdropDrawable != null) {
-            backdropDrawable.setProgress(0f, baseColors);
+            backdropDrawable.setColors(baseColors);
         }
         ShimmerDrawable.setGlobalProgress(0f);
     }
@@ -86,7 +86,7 @@ public class BackgroundAnimator {
     public void stop() {
         cancelAnimator();
         if (backdropDrawable != null) {
-            backdropDrawable.setProgress(0f, backdropDrawable.getCurrentColors());
+            backdropDrawable.setColors(backdropDrawable.getCurrentColors());
         }
         ShimmerDrawable.setGlobalProgress(0f);
     }

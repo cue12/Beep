@@ -1,6 +1,5 @@
 package il.co.bensavit.beep.ui.anim;
 
-import android.animation.ValueAnimator;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.LinearGradient;
@@ -36,7 +35,6 @@ public class ShimmerDrawable extends Drawable {
     private final Matrix shaderMatrix = new Matrix();
     private final RectF borderBounds = new RectF();
 
-    private ValueAnimator animator;
     private float translationFactor = -1.5f;
 
     private int highlightColor;
@@ -66,10 +64,6 @@ public class ShimmerDrawable extends Drawable {
                 shimmer.setProgress(fraction);
             }
         }
-    }
-
-    public static float getGlobalProgress() {
-        return globalProgress;
     }
 
     /**
@@ -157,17 +151,6 @@ public class ShimmerDrawable extends Drawable {
     }
 
     /**
-     * Configures animation parameters.
-     * Note: Shimmer timing is synchronized with the global backdrop animation cycle.
-     *
-     * @param durationMs     Duration in milliseconds.
-     * @param repeatDelayMs Delay in milliseconds.
-     */
-    public void setAnimationConfig(long durationMs, long repeatDelayMs) {
-        // Shimmer sweep timing is synchronized with BackgroundAnimator
-    }
-
-    /**
      * Sets the shine highlight color.
      *
      * @param color The ARGB color.
@@ -202,10 +185,6 @@ public class ShimmerDrawable extends Drawable {
      * Stops the shimmer animation and unregisters from global sync.
      */
     public void stop() {
-        if (animator != null) {
-            animator.cancel();
-            animator = null;
-        }
         activeShimmers.remove(this);
         translationFactor = -1.5f;
         invalidateSelf();

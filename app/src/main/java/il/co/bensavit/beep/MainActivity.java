@@ -483,8 +483,9 @@ public class MainActivity extends AppCompatActivity {
         ShimmerDrawable.attachTo(taskCard);
 
         android.widget.TextView fileNameTv = taskView.findViewById(R.id.text_filename);
+        android.widget.TextView percentTv = taskView.findViewById(R.id.text_progress_percent);
         android.widget.TextView elapsedTimeTv = taskView.findViewById(R.id.text_elapsed_time);
-        android.widget.ProgressBar progressBar = taskView.findViewById(R.id.task_progress_bar);
+        com.google.android.material.progressindicator.CircularProgressIndicator progressBar = taskView.findViewById(R.id.task_progress_bar);
         android.widget.TextView statusTv = taskView.findViewById(R.id.text_status);
 
         fileNameTv.setText(currentFile[0].getName());
@@ -506,6 +507,7 @@ public class MainActivity extends AppCompatActivity {
         if (restoredTaskEntry != null && restoredTaskEntry.status != MainViewModel.TaskEntry.Status.RUNNING) {
             // Task completed or stopped previously
             progressBar.setVisibility(View.GONE);
+            percentTv.setVisibility(View.GONE);
             if (restoredTaskEntry.elapsedTimeMs > 0) {
                 long elapsedMs = restoredTaskEntry.elapsedTimeMs;
                 long secs = (elapsedMs / 1000) % 60;
@@ -527,6 +529,8 @@ public class MainActivity extends AppCompatActivity {
             }
         } else {
             progressBar.setVisibility(View.VISIBLE);
+            progressBar.setIndeterminate(true);
+            percentTv.setVisibility(View.GONE);
             statusTv.setText(R.string.transcription_starting);
             if (restoredTaskEntry != null && restoredTaskEntry.workId != null) {
                 taskViewModel.observeExistingWork(restoredTaskEntry.workId);
@@ -577,7 +581,38 @@ public class MainActivity extends AppCompatActivity {
                     String displayName = ModelUtils.formatModelDisplayName(this, modelId);
                     statusTv.setText(getString(R.string.model_subtitle, displayName));
                 } else if (Boolean.TRUE.equals(taskViewModel.isProgressVisible.getValue())) {
-                    statusTv.setText(text);
+                    if (text.endsWith("%")) {
+                        try {
+                            String numericPart = text.replace("%", "").trim();
+                            java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d+(?:\\.\\d+)?)").matcher(numericPart);
+                            if (matcher.find()) {
+                                String matchGroup = matcher.group(1);
+                                if (matchGroup != null) {
+                                    double val = Double.parseDouble(matchGroup);
+                                    int percent = Math.min(100, Math.max(0, (int) Math.round(val)));
+                                    percentTv.setText(percent + "%");
+                                    percentTv.setVisibility(View.VISIBLE);
+                                    if (progressBar.isIndeterminate()) {
+                                        progressBar.setIndeterminate(false);
+                                    }
+                                    progressBar.setProgress(percent, true);
+                                    statusTv.setText(R.string.transcribing_progress);
+                                } else {
+                                    statusTv.setText(text);
+                                }
+                            } else {
+                                statusTv.setText(text);
+                            }
+                        } catch (Exception e) {
+                            statusTv.setText(text);
+                        }
+                    } else {
+                        statusTv.setText(text);
+                        percentTv.setVisibility(View.GONE);
+                        if (!progressBar.isIndeterminate()) {
+                            progressBar.setIndeterminate(true);
+                        }
+                    }
                 } else if (isErrorOrCancelledMessage(text)) {
                     statusTv.setText(text);
                     if (text.contains(getString(R.string.error_low_memory))) {
@@ -602,6 +637,7 @@ public class MainActivity extends AppCompatActivity {
         taskViewModel.isProgressVisible.observe(this, visible -> {
             progressBar.setVisibility(visible ? View.VISIBLE : View.GONE);
             if (!visible) {
+                percentTv.setVisibility(View.GONE);
                 if (restoredTaskEntry == null || restoredTaskEntry.status == MainViewModel.TaskEntry.Status.RUNNING) {
                     long elapsedMs = System.currentTimeMillis() - startTime;
                     long secs = (elapsedMs / 1000) % 60;

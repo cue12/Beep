@@ -198,8 +198,8 @@ public class ModelRepository {
             ModelInfo modelInfo = REMOTE_MODEL_IDS.get(modelName);
 
             if (modelInfo != null) {
-                File modelFile = new File(application.getFilesDir(), selectedModel);
-                File corruptedFile = new File(application.getFilesDir(), selectedModel + SUFFIX_CORRUPTED);
+                File modelFile = new File(StorageUtils.getModelsDir(application), modelName);
+                File corruptedFile = new File(StorageUtils.getModelsDir(application), modelName + SUFFIX_CORRUPTED);
 
                 // If file exists, verify it's not empty and check SHA
                 boolean existsAndValid = verifyModel(application, modelName);
@@ -299,6 +299,12 @@ public class ModelRepository {
                 if (callback != null) callback.onSuccess(modelName);
             } catch (Exception e) {
                 Logger.e(TAG, "Error loading model: " + modelName, e);
+                File modelFile = new File(StorageUtils.getModelsDir(application), modelName);
+                if (modelFile.exists()) {
+                    if (!modelFile.delete()) {
+                        Logger.w(TAG, "Failed to delete corrupted/unreadable model file: " + modelFile.getAbsolutePath());
+                    }
+                }
                 if (callback != null) callback.onError(modelName, false, false);
             }
 
@@ -321,13 +327,13 @@ public class ModelRepository {
     }
 
     public void deleteDownloadedModel(String modelName) {
-        File modelFile = new File(application.getFilesDir(), StorageUtils.MODELS_DIR + "/" + modelName);
+        File modelFile = new File(StorageUtils.getModelsDir(application), modelName);
         if (modelFile.exists()) {
             if (!modelFile.delete()) {
                 Logger.w(TAG, "Failed to delete model file: " + modelFile.getAbsolutePath());
             }
         }
-        File corruptedFile = new File(application.getFilesDir(), StorageUtils.MODELS_DIR + "/" + modelName + SUFFIX_CORRUPTED);
+        File corruptedFile = new File(StorageUtils.getModelsDir(application), modelName + SUFFIX_CORRUPTED);
         if (corruptedFile.exists()) {
             if (!corruptedFile.delete()) {
                 Logger.w(TAG, "Failed to delete corrupted model file: " + corruptedFile.getAbsolutePath());
@@ -336,19 +342,22 @@ public class ModelRepository {
     }
 
     public void clearDownloadedModels() {
-        File modelsDir = StorageUtils.getModelsDir(application);
-        if (modelsDir.exists() && modelsDir.isDirectory()) {
-            File[] files = modelsDir.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (file.isFile()) {
-                        if (!file.delete()) {
-                            Logger.w(TAG, "Failed to delete model file: " + file.getAbsolutePath());
+        cancelDownload();
+        executorService.execute(() -> {
+            File modelsDir = StorageUtils.getModelsDir(application);
+            if (modelsDir.exists() && modelsDir.isDirectory()) {
+                File[] files = modelsDir.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (file.isFile()) {
+                            if (!file.delete()) {
+                                Logger.w(TAG, "Failed to delete model file: " + file.getAbsolutePath());
+                            }
                         }
                     }
                 }
             }
-        }
+        });
     }
 
     private boolean waitForDownloadManager(long downloadId, String modelName, File dstFile, ModelLoadCallback callback) {

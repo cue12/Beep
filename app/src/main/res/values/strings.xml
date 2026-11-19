@@ -80,6 +80,7 @@
     <string name="please_wait_model_loading">Please wait while the model is loading...</string>
     <string name="handling_shared_file">Handling shared file...</string>
     <string name="transcription_starting">Starting transcription...</string>
+    <string name="transcribing_progress">Transcribing...</string>
     <string name="transcription_cancelled">Transcription cancelled.</string>
     <string name="error_conversion_failed">Error: Failed to convert audio to WAV. Format might not be supported.</string>
     <string name="error_copy_failed">Error: Failed to copy shared file. See logs for details.</string>

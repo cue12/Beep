@@ -8,8 +8,8 @@ public class StorageUtils {
     public static final String SHARED_DIR = "shared";
 
     public static void ensureDirectoriesExist(Context context) {
-        ensureDirectoryExists(new File(context.getFilesDir(), MODELS_DIR));
-        ensureDirectoryExists(new File(context.getFilesDir(), SHARED_DIR));
+        ensureDirectoryExists(getModelsDir(context));
+        ensureDirectoryExists(getSharedDir(context));
     }
 
     private static void ensureDirectoryExists(File dir) {

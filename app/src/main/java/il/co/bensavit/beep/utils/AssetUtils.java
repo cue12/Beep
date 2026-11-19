@@ -14,7 +14,11 @@ public class AssetUtils {
   private static final String TAG = "AssetUtils";
 
   public static File copyFileIfNotExists(Context context, File distDir, String filename) {
-    File dstFile = new File(distDir, filename);
+    if (filename == null || filename.trim().isEmpty()) {
+      return null;
+    }
+    String cleanFileName = new File(filename).getName();
+    File dstFile = new File(distDir, cleanFileName);
     if (dstFile.exists() && dstFile.length() > 0) {
       return dstFile;
     } else {

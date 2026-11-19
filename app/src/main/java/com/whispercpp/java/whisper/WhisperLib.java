@@ -1,12 +1,9 @@
 package com.whispercpp.java.whisper;
 
-import android.content.res.AssetManager;
 import android.os.Build;
 import android.util.Log;
 
 import androidx.annotation.RequiresApi;
-
-import java.io.InputStream;
 
 @RequiresApi(api = Build.VERSION_CODES.O)
 public class WhisperLib {
@@ -48,21 +45,6 @@ public class WhisperLib {
       System.loadLibrary("whisper");
     }
   }
-
-  /**
-   * JNI call to initialize the Whisper context from an InputStream.
-   * @param inputStream The stream containing the model data.
-   * @return A pointer (long) to the native whisper_context.
-   */
-  public static native long initContextFromInputStream(InputStream inputStream);
-
-  /**
-   * JNI call to initialize the Whisper context from an Android Asset.
-   * @param assetManager The AssetManager to use.
-   * @param assetPath The path to the model file within the assets.
-   * @return A pointer (long) to the native whisper_context.
-   */
-  public static native long initContextFromAsset(AssetManager assetManager, String assetPath);
 
   /**
    * JNI call to initialize the Whisper context from a file path.
@@ -113,7 +95,6 @@ public class WhisperLib {
   /**
    * JNI call to get the start time of a specific segment.
    * @param contextPtr The pointer to the native whisper_context.
-   * @param index The index of the segment.
    * @return The start time in centiseconds.
    */
   public static native long getTextSegmentT0(long contextPtr, int index);
@@ -121,28 +102,7 @@ public class WhisperLib {
   /**
    * JNI call to get the end time of a specific segment.
    * @param contextPtr The pointer to the native whisper_context.
-   * @param index The index of the segment.
    * @return The end time in centiseconds.
    */
   public static native long getTextSegmentT1(long contextPtr, int index);
-
-  /**
-   * JNI call to retrieve system information from the native library (e.g., SIMD support).
-   * @return A string containing system info.
-   */
-  public static native String getSystemInfo();
-
-  /**
-   * JNI call to perform a memcpy benchmark.
-   * @param nthread Number of threads.
-   * @return Benchmark results as a string.
-   */
-  public static native String benchMemcpy(int nthread);
-
-  /**
-   * JNI call to perform a GGML matrix multiplication benchmark.
-   * @param nthread Number of threads.
-   * @return Benchmark results as a string.
-   */
-  public static native String benchGgmlMulMat(int nthread);
 }
