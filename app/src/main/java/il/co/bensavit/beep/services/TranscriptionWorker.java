@@ -132,13 +132,19 @@ public class TranscriptionWorker extends ListenableWorker {
                 final AtomicReference<String> actualModelSelected = new AtomicReference<>();
 
                 synchronized (this) {
-                    scheduler = Executors.newSingleThreadScheduledExecutor();
-                    timeoutTask = scheduler.schedule(() -> {
-                        Logger.e(TAG, "Worker timed out after 10 minutes");
-                        WhisperService.INSTANCE.stopCurrentTranscription();
-                        future.set(Result.failure(new Data.Builder().putString(KEY_ERROR, "Transcription timed out").build()));
-                        shutdownScheduler();
-                    }, 10, TimeUnit.MINUTES);
+                    App app = (App) getApplicationContext();
+                    SettingsManager settingsManager = app.getSettingsManager();
+                    final int timeoutMinutes = settingsManager.getTranscriptionTimeoutMinutes();
+
+                    if (timeoutMinutes > 0) {
+                        scheduler = Executors.newSingleThreadScheduledExecutor();
+                        timeoutTask = scheduler.schedule(() -> {
+                            Logger.e(TAG, "Worker timed out after " + timeoutMinutes + " minutes");
+                            future.set(Result.failure(new Data.Builder().putString(KEY_ERROR, "Transcription timed out").build()));
+                            WhisperService.INSTANCE.stopCurrentTranscription();
+                            shutdownScheduler();
+                        }, timeoutMinutes, TimeUnit.MINUTES);
+                    }
                 }
 
                 future.addListener(() -> {

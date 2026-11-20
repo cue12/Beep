@@ -97,6 +97,9 @@ public class MainViewModel extends AndroidViewModel implements TaskStateListener
     private final MutableLiveData<Boolean> _isVibrationEnabled = new MutableLiveData<>(true);
     public final LiveData<Boolean> isVibrationEnabledLiveData = _isVibrationEnabled;
 
+    private final MutableLiveData<Integer> _transcriptionTimeoutMinutes = new MutableLiveData<>(SettingsManager.DEFAULT_TIMEOUT_MINUTES);
+    public final LiveData<Integer> transcriptionTimeoutMinutes = _transcriptionTimeoutMinutes;
+
     private final MutableLiveData<String> _currentModelName = new MutableLiveData<>(null);
     public final LiveData<String> currentModelName = _currentModelName;
 
@@ -538,6 +541,7 @@ public class MainViewModel extends AndroidViewModel implements TaskStateListener
         _isGeminiSelected.setValue(geminiSelected);
         _isGeminiSummaryEnabled.setValue(settingsManager.isGeminiSummaryEnabled());
         _isVibrationEnabled.setValue(settingsManager.isVibrationEnabled());
+        _transcriptionTimeoutMinutes.setValue(settingsManager.getTranscriptionTimeoutMinutes());
         _isSortTasksNewestFirst.setValue(settingsManager.isSortTasksNewestFirst());
         _geminiModelName.setValue(settingsManager.getGeminiModelName());
 
@@ -896,6 +900,15 @@ public class MainViewModel extends AndroidViewModel implements TaskStateListener
     public void setVibrationEnabled(boolean enabled) {
         settingsManager.setVibrationEnabled(enabled);
         _isVibrationEnabled.setValue(enabled);
+    }
+
+    public int getTranscriptionTimeoutMinutes() {
+        return settingsManager.getTranscriptionTimeoutMinutes();
+    }
+
+    public void setTranscriptionTimeoutMinutes(int minutes) {
+        settingsManager.setTranscriptionTimeoutMinutes(minutes);
+        _transcriptionTimeoutMinutes.setValue(minutes);
     }
 
     @Override

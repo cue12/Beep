@@ -175,6 +175,12 @@
     <string name="section_general_options">אפשרויות כלליות</string>
     <string name="option_vibration_title">רטט בסיום תמלול</string>
     <string name="option_vibration_summary">הרעד את המכשיר בעת סיום התמלול (נגישות וכלי עזר).</string>
+    <string name="option_timeout_title">זמן קצוב לתמלול</string>
+    <string name="option_timeout_summary">זמן מרבי לפני הפסקת משימת תמלול (%1$s).</string>
+    <string name="timeout_minutes_format">%1$d דקות</string>
+    <string name="timeout_minutes_default">%1$d דקות (ברירת מחדל)</string>
+    <string name="timeout_unlimited">ללא הגבלה (ללא זמן קצוב)</string>
+    <string name="dialog_select_timeout_title">בחר זמן קצוב לתמלול</string>
     <string name="minimize_all_tasks">מזער הכל</string>
     <string name="expand_all_tasks">הרחב הכל</string>
     <string name="minimize_other_tasks">מזער כרטיסים אחרים</string>

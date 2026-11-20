@@ -28,6 +28,8 @@ public class SettingsManager {
     private static final String KEY_SORT_TASKS_NEWEST_FIRST = "sort_tasks_newest_first";
     private static final String KEY_GEMINI_SUMMARY_ENABLED = "gemini_summary_enabled";
     private static final String KEY_VIBRATION_ENABLED = "vibration_enabled";
+    private static final String KEY_TRANSCRIPTION_TIMEOUT_MINUTES = "transcription_timeout_minutes";
+    public static final int DEFAULT_TIMEOUT_MINUTES = 10;
 
     private final Context appContext;
     private final SharedPreferences prefs;
@@ -163,5 +165,13 @@ public class SettingsManager {
 
     public void setVibrationEnabled(boolean enabled) {
         prefs.edit().putBoolean(KEY_VIBRATION_ENABLED, enabled).apply();
+    }
+
+    public int getTranscriptionTimeoutMinutes() {
+        return prefs.getInt(KEY_TRANSCRIPTION_TIMEOUT_MINUTES, DEFAULT_TIMEOUT_MINUTES);
+    }
+
+    public void setTranscriptionTimeoutMinutes(int minutes) {
+        prefs.edit().putInt(KEY_TRANSCRIPTION_TIMEOUT_MINUTES, minutes).apply();
     }
 }

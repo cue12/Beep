@@ -36,6 +36,37 @@
             android:textColor="?android:attr/textColorSecondary"
             android:textSize="12sp" />
 
+        <LinearLayout
+            android:id="@+id/layout_timeout_option"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:gravity="center_vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                android:id="@+id/text_timeout_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/option_timeout_title"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/text_timeout_summary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/option_timeout_summary"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
         <!-- Gemini Options Section -->
         <TextView
             android:layout_width="match_parent"

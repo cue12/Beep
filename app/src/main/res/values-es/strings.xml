@@ -175,6 +175,12 @@
     <string name="section_general_options">Opciones generales</string>
     <string name="option_vibration_title">Vibrar al finalizar</string>
     <string name="option_vibration_summary">Vibrar el dispositivo cuando finalice la transcripción.</string>
+    <string name="option_timeout_title">Tiempo de espera de transcripción</string>
+    <string name="option_timeout_summary">Duración máxima antes de detener una tarea de transcripción (%1$s).</string>
+    <string name="timeout_minutes_format">%1$d minutos</string>
+    <string name="timeout_minutes_default">%1$d minutos (Predeterminado)</string>
+    <string name="timeout_unlimited">Sin límite (Sin tiempo de espera)</string>
+    <string name="dialog_select_timeout_title">Seleccionar tiempo de espera</string>
     <string name="minimize_all_tasks">Minimizar todo</string>
     <string name="expand_all_tasks">Expandir todo</string>
     <string name="minimize_other_tasks">Minimizar otras tarjetas</string>

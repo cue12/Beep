@@ -175,6 +175,12 @@
     <string name="section_general_options">General Options</string>
     <string name="option_vibration_title">Vibrate on completion</string>
     <string name="option_vibration_summary">Vibrate device when audio transcription finishes.</string>
+    <string name="option_timeout_title">Transcription Timeout</string>
+    <string name="option_timeout_summary">Maximum duration before stopping a transcription task (%1$s).</string>
+    <string name="timeout_minutes_format">%1$d minutes</string>
+    <string name="timeout_minutes_default">%1$d minutes (Default)</string>
+    <string name="timeout_unlimited">Unlimited (No timeout)</string>
+    <string name="dialog_select_timeout_title">Select Transcription Timeout</string>
     <string name="minimize_all_tasks">Minimize All</string>
     <string name="expand_all_tasks">Expand All</string>
     <string name="minimize_other_tasks">Minimize Other Cards</string>
