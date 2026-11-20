@@ -175,6 +175,8 @@
     <string name="section_general_options">Opciones generales</string>
     <string name="option_vibration_title">Vibrar al finalizar</string>
     <string name="option_vibration_summary">Vibrar el dispositivo cuando finalice la transcripción.</string>
+    <string name="option_auto_copy_title">Copiar automáticamente al portapapeles</string>
+    <string name="option_auto_copy_summary">Copiar automáticamente el resultado de la transcripción al portapapeles al finalizar.</string>
     <string name="option_timeout_title">Tiempo de espera de transcripción</string>
     <string name="option_timeout_summary">Duración máxima antes de detener una tarea de transcripción (%1$s).</string>
     <string name="timeout_minutes_format">%1$d minutos</string>

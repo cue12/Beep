@@ -28,6 +28,7 @@ public class SettingsManager {
     private static final String KEY_SORT_TASKS_NEWEST_FIRST = "sort_tasks_newest_first";
     private static final String KEY_GEMINI_SUMMARY_ENABLED = "gemini_summary_enabled";
     private static final String KEY_VIBRATION_ENABLED = "vibration_enabled";
+    private static final String KEY_AUTO_COPY_ENABLED = "auto_copy_enabled";
     private static final String KEY_TRANSCRIPTION_TIMEOUT_MINUTES = "transcription_timeout_minutes";
     public static final int DEFAULT_TIMEOUT_MINUTES = 10;
 
@@ -165,6 +166,14 @@ public class SettingsManager {
 
     public void setVibrationEnabled(boolean enabled) {
         prefs.edit().putBoolean(KEY_VIBRATION_ENABLED, enabled).apply();
+    }
+
+    public boolean isAutoCopyEnabled() {
+        return prefs.getBoolean(KEY_AUTO_COPY_ENABLED, false);
+    }
+
+    public void setAutoCopyEnabled(boolean enabled) {
+        prefs.edit().putBoolean(KEY_AUTO_COPY_ENABLED, enabled).apply();
     }
 
     public int getTranscriptionTimeoutMinutes() {

@@ -21,6 +21,7 @@ public class TranscriptionOptionsDialogFragment extends DialogFragment {
 
     private static final String KEY_SWITCH_STATE = "switch_summary_state";
     private static final String KEY_SWITCH_VIBRATION_STATE = "switch_vibration_state";
+    private static final String KEY_SWITCH_AUTO_COPY_STATE = "switch_auto_copy_state";
     private static final String KEY_SELECTED_TIMEOUT = "selected_timeout";
     private static final String KEY_SHOW_TIMEOUT_PICKER = "show_timeout_picker";
 
@@ -29,6 +30,7 @@ public class TranscriptionOptionsDialogFragment extends DialogFragment {
     private MainViewModel viewModel;
     private SwitchMaterial switchSummary;
     private SwitchMaterial switchVibration;
+    private SwitchMaterial switchAutoCopy;
     private TextView textTimeoutSummary;
     private int selectedTimeoutMinutes;
     private Dialog activeTimeoutPickerDialog;
@@ -40,17 +42,28 @@ public class TranscriptionOptionsDialogFragment extends DialogFragment {
 
         View view = getLayoutInflater().inflate(R.layout.dialog_transcription_options, null);
         switchVibration = view.findViewById(R.id.switch_vibration);
+        switchAutoCopy = view.findViewById(R.id.switch_auto_copy);
         switchSummary = view.findViewById(R.id.switch_summary);
         textTimeoutSummary = view.findViewById(R.id.text_timeout_summary);
         View layoutTimeoutOption = view.findViewById(R.id.layout_timeout_option);
 
         view.findViewById(R.id.text_vibration_summary).setOnClickListener(v -> switchVibration.toggle());
+        if (view.findViewById(R.id.text_auto_copy_summary) != null) {
+            view.findViewById(R.id.text_auto_copy_summary).setOnClickListener(v -> switchAutoCopy.toggle());
+        }
         view.findViewById(R.id.text_summary_summary).setOnClickListener(v -> switchSummary.toggle());
 
         boolean initialVibrationChecked = (savedInstanceState != null)
                 ? savedInstanceState.getBoolean(KEY_SWITCH_VIBRATION_STATE, viewModel.isVibrationEnabled())
                 : viewModel.isVibrationEnabled();
         switchVibration.setChecked(initialVibrationChecked);
+
+        boolean initialAutoCopyChecked = (savedInstanceState != null)
+                ? savedInstanceState.getBoolean(KEY_SWITCH_AUTO_COPY_STATE, viewModel.isAutoCopyEnabled())
+                : viewModel.isAutoCopyEnabled();
+        if (switchAutoCopy != null) {
+            switchAutoCopy.setChecked(initialAutoCopyChecked);
+        }
 
         boolean initialChecked = (savedInstanceState != null)
                 ? savedInstanceState.getBoolean(KEY_SWITCH_STATE, viewModel.isGeminiSummaryEnabled())
@@ -77,6 +90,9 @@ public class TranscriptionOptionsDialogFragment extends DialogFragment {
                 .setPositiveButton(R.string.button_ok, (dialog, which) -> {
                     viewModel.setGeminiSummaryEnabled(switchSummary.isChecked());
                     viewModel.setVibrationEnabled(switchVibration.isChecked());
+                    if (switchAutoCopy != null) {
+                        viewModel.setAutoCopyEnabled(switchAutoCopy.isChecked());
+                    }
                     viewModel.setTranscriptionTimeoutMinutes(selectedTimeoutMinutes);
                 })
                 .setNegativeButton(R.string.button_cancel, null)
@@ -136,6 +152,9 @@ public class TranscriptionOptionsDialogFragment extends DialogFragment {
         }
         if (switchVibration != null) {
             outState.putBoolean(KEY_SWITCH_VIBRATION_STATE, switchVibration.isChecked());
+        }
+        if (switchAutoCopy != null) {
+            outState.putBoolean(KEY_SWITCH_AUTO_COPY_STATE, switchAutoCopy.isChecked());
         }
         outState.putInt(KEY_SELECTED_TIMEOUT, selectedTimeoutMinutes);
         outState.putBoolean(KEY_SHOW_TIMEOUT_PICKER, activeTimeoutPickerDialog != null && activeTimeoutPickerDialog.isShowing());

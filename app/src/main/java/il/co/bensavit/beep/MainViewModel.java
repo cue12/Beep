@@ -1,15 +1,19 @@
 package il.co.bensavit.beep;
 
 import android.app.Application;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.media.MediaCodec;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.widget.Toast;
 import android.annotation.SuppressLint;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import androidx.annotation.Keep;
@@ -96,6 +100,9 @@ public class MainViewModel extends AndroidViewModel implements TaskStateListener
 
     private final MutableLiveData<Boolean> _isVibrationEnabled = new MutableLiveData<>(true);
     public final LiveData<Boolean> isVibrationEnabledLiveData = _isVibrationEnabled;
+
+    private final MutableLiveData<Boolean> _isAutoCopyEnabled = new MutableLiveData<>(false);
+    public final LiveData<Boolean> isAutoCopyEnabledLiveData = _isAutoCopyEnabled;
 
     private final MutableLiveData<Integer> _transcriptionTimeoutMinutes = new MutableLiveData<>(SettingsManager.DEFAULT_TIMEOUT_MINUTES);
     public final LiveData<Integer> transcriptionTimeoutMinutes = _transcriptionTimeoutMinutes;
@@ -451,6 +458,9 @@ public class MainViewModel extends AndroidViewModel implements TaskStateListener
             if (entry.taskKey.equals(taskKey)) {
                 boolean changed = false;
                 if (entry.status != status) {
+                    if (status == TaskStatus.SUCCEEDED && resultText != null) {
+                        checkAndAutoCopy(resultText);
+                    }
                     entry.status = status;
                     changed = true;
                 }
@@ -541,6 +551,7 @@ public class MainViewModel extends AndroidViewModel implements TaskStateListener
         _isGeminiSelected.setValue(geminiSelected);
         _isGeminiSummaryEnabled.setValue(settingsManager.isGeminiSummaryEnabled());
         _isVibrationEnabled.setValue(settingsManager.isVibrationEnabled());
+        _isAutoCopyEnabled.setValue(settingsManager.isAutoCopyEnabled());
         _transcriptionTimeoutMinutes.setValue(settingsManager.getTranscriptionTimeoutMinutes());
         _isSortTasksNewestFirst.setValue(settingsManager.isSortTasksNewestFirst());
         _geminiModelName.setValue(settingsManager.getGeminiModelName());
@@ -900,6 +911,56 @@ public class MainViewModel extends AndroidViewModel implements TaskStateListener
     public void setVibrationEnabled(boolean enabled) {
         settingsManager.setVibrationEnabled(enabled);
         _isVibrationEnabled.setValue(enabled);
+    }
+
+    public boolean isAutoCopyEnabled() {
+        return settingsManager.isAutoCopyEnabled();
+    }
+
+    public void setAutoCopyEnabled(boolean enabled) {
+        settingsManager.setAutoCopyEnabled(enabled);
+        _isAutoCopyEnabled.setValue(enabled);
+    }
+
+    private void checkAndAutoCopy(String rawResult) {
+        if (!isAutoCopyEnabled() || rawResult == null || rawResult.isEmpty()) {
+            return;
+        }
+        String copyText = extractCleanTextForCopy(rawResult);
+        if (copyText.isEmpty()) {
+            return;
+        }
+        mainHandler.post(() -> {
+            try {
+                ClipboardManager clipboard = (ClipboardManager) getApplication().getSystemService(Context.CLIPBOARD_SERVICE);
+                if (clipboard != null) {
+                    ClipData clip = ClipData.newPlainText("Transcription", copyText);
+                    clipboard.setPrimaryClip(clip);
+                    Toast.makeText(getApplication(), R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show();
+                }
+            } catch (SecurityException e) {
+                Logger.w(TAG, "Auto-copy suppressed: clipboard access prohibited while app in background (" + e.getMessage() + ")");
+            } catch (Exception e) {
+                Logger.e(TAG, "Auto-copy to clipboard failed", e);
+            }
+        });
+    }
+
+    private String extractCleanTextForCopy(String rawResult) {
+        if (rawResult == null || rawResult.isEmpty()) {
+            return "";
+        }
+        try {
+            JSONObject json = new JSONObject(rawResult);
+            String transcription = json.optString("Transcription", "").trim();
+            String summary = json.optString("Summary", "").trim();
+            if (!transcription.isEmpty()) {
+                return transcription;
+            } else if (!summary.isEmpty()) {
+                return summary;
+            }
+        } catch (JSONException ignored) {}
+        return rawResult;
     }
 
     public int getTranscriptionTimeoutMinutes() {
